@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
+  
+  <!-- Homepage -->
+  <url>
+    <loc>https://signaturedaytshirt.com/</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://signaturedaytshirt.com/og-image.png</image:loc>
+      <image:title>Signature Day Tshirt - Create Memorable Farewell T-Shirts</image:title>
+      <image:caption>Design custom photo collage T-shirts with your classmates</image:caption>
+    </image:image>
+  </url>
+
+  <!-- Authentication Pages -->
+  <url>
+    <loc>https://signaturedaytshirt.com/auth</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://signaturedaytshirt.com/forgot-password</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+
+  <!-- Main Application Pages -->
+  <url>
+    <loc>https://signaturedaytshirt.com/create-group</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <url>
+    <loc>https://signaturedaytshirt.com/join-group</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Dashboard and Editor (Protected but still indexed for SEO) -->
+  <url>
+    <loc>https://signaturedaytshirt.com/dashboard</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://signaturedaytshirt.com/editor</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://signaturedaytshirt.com/checkout</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Help and Support Pages -->
+  <url>
+    <loc>https://signaturedaytshirt.com/help</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+  <url>
+    <loc>https://signaturedaytshirt.com/faq</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+  <url>
+    <loc>https://signaturedaytshirt.com/privacy</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <url>
+    <loc>https://signaturedaytshirt.com/terms</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <!-- Blog/Content Pages (if you add them) -->
+  <url>
+    <loc>https://signaturedaytshirt.com/blog</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <url>
+    <loc>https://signaturedaytshirt.com/templates</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://signaturedaytshirt.com/gallery</loc>
+    <lastmod>2024-12-19</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+</urlset> 
