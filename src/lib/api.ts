@@ -370,6 +370,16 @@ export const paymentsApi = {
     invoicePdfBase64?: string;
     invoiceFileName?: string;
   }) => apiRequest<{ valid: boolean; emailed: boolean }>(`/payments/verify`, 'POST', payload),
+  verifyBulk: (payload: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+    groupId: string;
+    unpaidMemberRolls: string[];
+    shipping?: any;
+  }) => apiRequest<{ success: boolean; message: string; orderId?: string }>(`/payments/bulk/verify`, 'POST', payload),
+  sendMemberLink: (groupId: string, memberRollNumber: string) =>
+    apiRequest<{ success: boolean; message: string }>(`/payments/member/send-link`, 'POST', { groupId, memberRollNumber }),
   // Demo payment flow (internal reward bookkeeping)
   // NOTE: backend currently expects { groupId, itemTotal }
   createIntent: (groupId: string, itemTotal: number) =>

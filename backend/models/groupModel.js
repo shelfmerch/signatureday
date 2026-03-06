@@ -202,6 +202,7 @@ groupSchema.methods.updateGridTemplate = function () {
   let winningTemplate = this.gridTemplate;
 
   for (const [template, count] of Object.entries(votes)) {
+    if (template === 'any') continue;
     if (count > maxVotes) {
       maxVotes = count;
       winningTemplate = template;

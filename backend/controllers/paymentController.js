@@ -10,8 +10,8 @@ import Payment from '../models/paymentModel.js';
 import AmbassadorReward from '../models/ambassadorRewardModel.js';
 import Ambassador from '../models/ambassadorModel.js';
 import mongoose from 'mongoose';
-// import OTPVerification from '../models/OTPVerification.js';
-// import { standardizePhoneNumber } from '../utils/otpUtils.js';
+import { upsertReward } from '../services/rewardService.js';
+import { queueOrderRender } from '../services/sharpRenderService.js';
 
 const getRazorpayInstance = () => {
   const keyId = process.env.RAZORPAY_KEY_ID;
@@ -20,6 +20,141 @@ const getRazorpayInstance = () => {
     throw new Error('Missing RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET');
   }
   return new Razorpay({ key_id: keyId, key_secret: keySecret });
+};
+
+/**
+ * Helper to send payment confirmation email with invoice attachment
+ */
+export const sendPaymentConfirmationEmail = async ({
+  email,
+  name,
+  amount,
+  razorpay_payment_id,
+  displayOrderId,
+  invoicePdfBase64,
+  invoiceFileName
+}) => {
+  if (!email) return false;
+
+  try {
+    const amountDisplay = typeof amount === 'number' ? `₹${(amount / 100).toFixed(2)}` : 'N/A';
+
+    const htmlTemplate = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Payment Confirmation - Signature Day</title>
+        <style>
+          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff; }
+          .container { background-color: #ffffff; border: 1px solid #e1e8ed; margin-top: 20px; }
+          .header { text-align: center; padding: 30px 20px; background-color: #f8fafc; border-bottom: 2px solid #6d28d9; }
+          .logo { max-width: 150px; margin-bottom: 20px; }
+          .content { padding: 40px 30px; }
+          .footer { background-color: #f8fafc; padding: 30px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; }
+          .details-card { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; padding: 25px; margin: 30px 0; }
+          .details-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; border-bottom: 1px dashed #f1f5f9; padding-bottom: 8px; }
+          .details-row:last-child { border-bottom: none; }
+          .details-label { color: #64748b; }
+          .details-value { color: #1e293b; font-weight: 600; }
+          h1 { margin: 0; font-size: 20px; color: #1e293b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+          p { margin-bottom: 15px; font-size: 15px; color: #475569; }
+          .company-info { margin-top: 40px; font-size: 11px; color: #94a3b8; line-height: 1.6; text-align: left; }
+          .thank-you { font-weight: 700; color: #6d28d9; margin-top: 30px; font-size: 16px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <img src="https://signatureday.com/shelf-merch-logo.webp" alt="Signature Day Logo" class="logo">
+            <h1>Payment Confirmation</h1>
+          </div>
+          <div class="content">
+            <p>Dear ${name || 'Customer'},</p>
+            <p>Thank you for your payment. We are pleased to confirm that your transaction has been successfully processed and your order has been received.</p>
+            
+            <div class="details-card">
+              <p style="margin-top: 0; font-weight: 700; color: #1e293b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">Transaction Details</p>
+              <div class="details-row">
+                <span class="details-label">Order ID:</span>
+                <span class="details-value">${displayOrderId}</span>
+              </div>
+              <div class="details-row">
+                <span class="details-label">Payment ID:</span>
+                <span class="details-value">${razorpay_payment_id}</span>
+              </div>
+              <div class="details-row">
+                <span class="details-label">Total Amount:</span>
+                <span class="details-value">${amountDisplay}</span>
+              </div>
+              <div class="details-row">
+                <span class="details-label">Date:</span>
+                <span class="details-value">${new Date().toLocaleDateString('en-IN')}</span>
+              </div>
+            </div>
+
+            <p>We've attached your official <strong>Tax Invoice</strong> to this email for your records.</p>
+            
+            <p><strong>What's next?</strong><br>
+            Our team will now begin processing your order. You will receive further updates via email once your items are dispatched.</p>
+
+            <p class="thank-you">Thank you for choosing Signature Day.</p>
+
+            <div class="company-info">
+              <strong>Chitlu Innovations Private Limited</strong><br>
+              G2, Win Win Towers, Siddhi Vinayaka Nagar,<br>
+              Madhapur, Hyderabad, Telangana – 500081, India<br>
+              GSTIN: 36AAHCC5155C1ZW
+            </div>
+          </div>
+          <div class="footer">
+            <p>This is an automated message from Signature Day. Please do not reply.</p>
+            <p>&copy; ${new Date().getFullYear()} Signature Day. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const logoPath = path.join(process.cwd(), '..', 'public', 'images', 'shelf-merch-logo.webp');
+    let logoContent = null;
+    try {
+      if (fs.existsSync(logoPath)) {
+        logoContent = fs.readFileSync(logoPath);
+      }
+    } catch (logoErr) {
+      console.error('Failed to read logo for email embedding:', logoErr);
+    }
+
+    const attachments = [
+      ...(invoicePdfBase64 && invoiceFileName ? [
+        {
+          filename: invoiceFileName,
+          content: invoicePdfBase64,
+          encoding: 'base64',
+          contentType: 'application/pdf'
+        }
+      ] : []),
+      ...(logoContent ? [
+        {
+          filename: 'shelf-merch-logo.webp',
+          content: logoContent,
+          cid: 'shelf-merch-logo'
+        }
+      ] : [])
+    ];
+
+    await sendMail({
+      to: email,
+      subject: 'Payment Confirmation - Signature Day',
+      html: htmlTemplate.replace('https://signatureday.com/shelf-merch-logo.webp', 'cid:shelf-merch-logo'),
+      attachments
+    });
+    return true;
+  } catch (err) {
+    console.error('sendPaymentConfirmationEmail error:', err);
+    return false;
+  }
 };
 
 export const getKey = async (req, res) => {
@@ -42,13 +177,27 @@ export const createRazorpayOrder = async (req, res) => {
     // Convert amount to integer (Razorpay requires integer values)
     const amountPaise = Math.round(amount);
 
+    // Sanitize notes (Razorpay only allows strings, max 15 keys)
+    const sanitizedNotes = {};
+    if (notes) {
+      Object.keys(notes).forEach((key, index) => {
+        if (index < 15) {
+          const value = notes[key];
+          sanitizedNotes[key] = typeof value === 'object' ? JSON.stringify(value).substring(0, 255) : String(value).substring(0, 255);
+        }
+      });
+    }
+
     const razorpay = getRazorpayInstance();
-    const order = await razorpay.orders.create({
-      amount: amountPaise, // paise (must be integer)
+    const orderOptions = {
+      amount: amountPaise,
       currency,
       receipt: receipt || `rcpt_${Date.now()}`,
-      notes: notes || {},
-    });
+      notes: sanitizedNotes,
+    };
+
+    console.log('Final Razorpay Order Options:', JSON.stringify(orderOptions));
+    const order = await razorpay.orders.create(orderOptions);
 
     return res.status(201).json({
       id: order.id,
@@ -113,120 +262,15 @@ export const verifyPayment = async (req, res) => {
 
       if (customerEmail) {
         const displayOrderId = clientOrderId || orderId || razorpay_order_id;
-        const amountDisplay = typeof bodyAmount === 'number' ? `₹${(bodyAmount / 100).toFixed(2)}` : 'N/A';
-
-        const htmlTemplate = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Payment Confirmation - Signature Day</title>
-            <style>
-              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff; }
-              .container { background-color: #ffffff; border: 1px solid #e1e8ed; margin-top: 20px; }
-              .header { text-align: center; padding: 30px 20px; background-color: #f8fafc; border-bottom: 2px solid #6d28d9; }
-              .logo { max-width: 150px; margin-bottom: 20px; }
-              .content { padding: 40px 30px; }
-              .footer { background-color: #f8fafc; padding: 30px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; }
-              .details-card { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; padding: 25px; margin: 30px 0; }
-              .details-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; border-bottom: 1px dashed #f1f5f9; padding-bottom: 8px; }
-              .details-row:last-child { border-bottom: none; }
-              .details-label { color: #64748b; }
-              .details-value { color: #1e293b; font-weight: 600; }
-              h1 { margin: 0; font-size: 20px; color: #1e293b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-              p { margin-bottom: 15px; font-size: 15px; color: #475569; }
-              .company-info { margin-top: 40px; font-size: 11px; color: #94a3b8; line-height: 1.6; text-align: left; }
-              .thank-you { font-weight: 700; color: #6d28d9; margin-top: 30px; font-size: 16px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <img src="https://signatureday.com/shelf-merch-logo.webp" alt="Signature Day Logo" class="logo">
-                <h1>Payment Confirmation</h1>
-              </div>
-              <div class="content">
-                <p>Dear ${customerName || 'Customer'},</p>
-                <p>Thank you for your payment. We are pleased to confirm that your transaction has been successfully processed and your order has been received.</p>
-                
-                <div class="details-card">
-                  <p style="margin-top: 0; font-weight: 700; color: #1e293b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">Transaction Details</p>
-                  <div class="details-row">
-                    <span class="details-label">Order ID:</span>
-                    <span class="details-value">${displayOrderId}</span>
-                  </div>
-                  <div class="details-row">
-                    <span class="details-label">Payment ID:</span>
-                    <span class="details-value">${razorpay_payment_id}</span>
-                  </div>
-                  <div class="details-row">
-                    <span class="details-label">Total Amount:</span>
-                    <span class="details-value">${amountDisplay}</span>
-                  </div>
-                  <div class="details-row">
-                    <span class="details-label">Date:</span>
-                    <span class="details-value">${new Date().toLocaleDateString('en-IN')}</span>
-                  </div>
-                </div>
-
-                <p>We've attached your official <strong>Tax Invoice</strong> to this email for your records.</p>
-                
-                <p><strong>What's next?</strong><br>
-                Our team will now begin processing your order. You will receive further updates via email once your items are dispatched.</p>
-
-                <p class="thank-you">Thank you for choosing Signature Day.</p>
-
-                <div class="company-info">
-                  <strong>Chitlu Innovations Private Limited</strong><br>
-                  G2, Win Win Towers, Siddhi Vinayaka Nagar,<br>
-                  Madhapur, Hyderabad, Telangana – 500081, India<br>
-                  GSTIN: 36AAHCC5155C1ZW
-                </div>
-              </div>
-              <div class="footer">
-                <p>This is an automated message from Signature Day. Please do not reply.</p>
-                <p>&copy; ${new Date().getFullYear()} Signature Day. All rights reserved.</p>
-              </div>
-            </div>
-          </body>
-          </html>
-        `;
-
-        const logoPath = path.join(process.cwd(), '..', 'public', 'shelf-merch-logo.webp');
-        let logoContent = null;
-        try {
-          if (fs.existsSync(logoPath)) {
-            logoContent = fs.readFileSync(logoPath);
-          }
-        } catch (logoErr) {
-          console.error('Failed to read logo for email embedding:', logoErr);
-        }
-
-        const attachments = [
-          ...(invoicePdfBase64 && invoiceFileName ? [
-            {
-              filename: invoiceFileName,
-              content: invoicePdfBase64,
-              encoding: 'base64',
-              contentType: 'application/pdf'
-            }
-          ] : []),
-          ...(logoContent ? [
-            {
-              filename: 'shelf-merch-logo.webp',
-              content: logoContent,
-              cid: 'shelf-merch-logo'
-            }
-          ] : [])
-        ];
-
-        await sendMail({
-          to: customerEmail,
-          subject: 'Payment Confirmation - Signature Day',
-          html: htmlTemplate.replace('https://signatureday.com/shelf-merch-logo.webp', 'cid:shelf-merch-logo'),
-          attachments
+        emailed = await sendPaymentConfirmationEmail({
+          email: customerEmail,
+          name: customerName,
+          amount: bodyAmount,
+          razorpay_payment_id,
+          displayOrderId,
+          invoicePdfBase64,
+          invoiceFileName
         });
-        emailed = true;
       }
     } catch (emailErr) {
       console.error('Failed to send payment confirmation email:', emailErr);
@@ -725,7 +769,10 @@ export const verifyBulkPayment = async (req, res) => {
       razorpay_payment_id,
       razorpay_signature,
       groupId,
-      unpaidMemberRolls
+      unpaidMemberRolls,
+      shipping,
+      invoicePdfBase64,
+      invoiceFileName
     } = req.body || {};
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !groupId || !unpaidMemberRolls) {
@@ -757,7 +804,87 @@ export const verifyBulkPayment = async (req, res) => {
     });
 
     if (updateCount > 0) {
+      group.status = 'paid';
       await group.save();
+    }
+
+    // If shipping info is provided, create the final Order
+    if (shipping && shipping.line1 && shipping.city) {
+      try {
+        const winningTemplate = group.layoutMode === 'voting' 
+          ? ((group.votes.square || 0) >= (group.votes.hexagonal || 0) ? 'square' : 'hexagonal')
+          : (group.layoutMode || 'square');
+
+        const orderMembers = group.members.map(m => ({
+          id: m.id || m.memberRollNumber,
+          name: m.name,
+          memberRollNumber: m.memberRollNumber,
+          photo: m.photo,
+          vote: (m.vote === 'any' ? winningTemplate : m.vote),
+          joinedAt: m.joinedAt || new Date(),
+          size: m.size,
+          phone: m.phone || undefined,
+        }));
+
+        const order = await Order.create({
+          clientOrderId: `ORD-${Date.now()}`,
+          status: 'new',
+          paid: true,
+          paymentId: razorpay_payment_id,
+          paidAt: new Date(),
+          description: `Group Order: ${group.name} (${group.yearOfPassing})`,
+          gridTemplate: winningTemplate,
+          members: orderMembers,
+          shipping: shipping,
+          groupId: group._id,
+          settings: {
+            widthPx: 2550,
+            heightPx: 3300,
+            keepAspect: true,
+            gapPx: 4,
+            cellScale: 1.0,
+            dpi: 300,
+          },
+        });
+
+        // Trigger reward and rendering background tasks
+        if (group.ambassadorId) {
+          const perItemTotal = !!group.ambassadorId ? 149 : 189;
+          const orderValue = perItemTotal * group.members.length;
+          upsertReward({ groupId, orderValue }).catch(e => console.error('Reward error:', e));
+        }
+
+        setImmediate(() => {
+          queueOrderRender(order.clientOrderId || order._id.toString()).catch(e => console.error('Render error:', e));
+        });
+
+
+
+        // Send confirmation email
+        const totalAmountPaise = updateCount * (group.pricePerMember || 189) * 100;
+        sendPaymentConfirmationEmail({
+          email: shipping.email || (req.user && req.user.email),
+          name: shipping.name || (req.user && req.user.name),
+          amount: totalAmountPaise,
+          razorpay_payment_id,
+          displayOrderId: order.clientOrderId,
+          invoicePdfBase64,
+          invoiceFileName
+        }).catch(e => console.error('Bulk payment email error:', e));
+
+        return res.json({ 
+          success: true, 
+          message: `Successfully paid for ${updateCount} members and created order`,
+          orderId: order.clientOrderId
+        });
+      } catch (orderErr) {
+        console.error('Order creation in verifyBulkPayment failed:', orderErr);
+        // We still return success for payment verification, but log the order failure
+        return res.json({ 
+          success: true, 
+          message: `Successfully paid for ${updateCount} members, but order creation failed: ${orderErr.message}` 
+        });
+      }
     }
 
     return res.json({ success: true, message: `Successfully marked ${updateCount} members as paid` });

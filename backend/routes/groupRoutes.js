@@ -27,7 +27,7 @@ const joinGroupValidation = [
   check('name', 'Name is required').not().isEmpty(),
   check('memberRollNumber', 'Member roll number is required').not().isEmpty(),
   check('photo', 'Photo is required').not().isEmpty(),
-  check('vote', 'Vote must be one of: hexagonal, square, circle').isIn(['hexagonal', 'square', 'circle']),
+  check('vote', 'Vote must be one of: hexagonal, square, circle, any').isIn(['hexagonal', 'square', 'circle', 'any']),
   check('phone', 'Phone number is required').not().isEmpty()
 ];
 

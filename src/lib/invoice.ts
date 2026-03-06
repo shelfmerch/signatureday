@@ -181,13 +181,17 @@ export async function generateInvoicePdfBase64(
   doc.setFontSize(8);
   doc.setTextColor(40, 40, 40);
   const tableY = y + 17;
+  const hasTax = items.some(item => (item.taxRate !== undefined && item.taxRate > 0) || (item.taxAmount !== undefined && item.taxAmount > 0));
+
   doc.text('Description', left + 5, tableY);
   doc.text('HSN', left + 140, tableY);
   doc.text('Qty', left + 185, tableY, { align: 'right' });
   doc.text('T-shirt', left + 245, tableY, { align: 'right' });
   doc.text('Print', left + 295, tableY, { align: 'right' });
-  doc.text('Tax %', left + 345, tableY, { align: 'right' });
-  doc.text('Tax Amt', left + 410, tableY, { align: 'right' });
+  if (hasTax) {
+    doc.text('Tax %', left + 345, tableY, { align: 'right' });
+    doc.text('Tax Amt', left + 410, tableY, { align: 'right' });
+  }
   doc.text('Total', right - 10, tableY, { align: 'right' });
 
   y += 25;
@@ -227,8 +231,10 @@ export async function generateInvoicePdfBase64(
       doc.text(String(item.quantity), left + 185, rowY, { align: 'right' });
       doc.text(item.unitPrice.toFixed(2), left + 245, rowY, { align: 'right' });
       doc.text(item.printPrice.toFixed(2), left + 295, rowY, { align: 'right' });
-      doc.text(`${(item.taxRate * 100).toFixed(0)}%`, left + 345, rowY, { align: 'right' });
-      doc.text(lineTax.toFixed(2), left + 410, rowY, { align: 'right' });
+      if (hasTax) {
+        doc.text(`${((item.taxRate || 0) * 100).toFixed(0)}%`, left + 345, rowY, { align: 'right' });
+        doc.text(lineTax.toFixed(2), left + 410, rowY, { align: 'right' });
+      }
       doc.text(lineTotal.toFixed(2), right - 10, rowY, { align: 'right' });
     });
   } else {
@@ -249,12 +255,14 @@ export async function generateInvoicePdfBase64(
   
   // Only show subtotal and tax if there are items
   if (items.length > 0) {
-    doc.text('Subtotal:', summaryX, y);
-    doc.text(totalSubtotal.toFixed(2), right - 10, y, { align: 'right' });
-    
-    y += 16;
-    doc.text('Tax (GST):', summaryX, y);
-    doc.text(totalTax.toFixed(2), right - 10, y, { align: 'right' });
+    if (hasTax) {
+      doc.text('Subtotal:', summaryX, y);
+      doc.text(totalSubtotal.toFixed(2), right - 10, y, { align: 'right' });
+      
+      y += 16;
+      doc.text('Tax (GST):', summaryX, y);
+      doc.text(totalTax.toFixed(2), right - 10, y, { align: 'right' });
+    }
   }
 
   // Show shipping charges

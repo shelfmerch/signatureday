@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -7,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useCollage } from '@/context/CollageContext';
+import { paymentsApi } from '@/lib/api';
 
 const MemberPayment = () => {
     const { groupId, memberRollNumber } = useParams<{ groupId: string; memberRollNumber: string }>();
@@ -68,22 +68,13 @@ const MemberPayment = () => {
             const amount = group.pricePerMember || 189;
             const amountPaise = amount * 100;
 
-            const orderRes = await fetch('/api/payments/order', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    amount: amountPaise,
-                    currency: 'INR',
-                    receipt: `member_${memberRollNumber}_${Date.now()}`,
-                    notes: { groupId, memberRollNumber, type: 'individual_payment' }
-                })
-            });
+            const order = await paymentsApi.createOrder(
+                amountPaise,
+                `m_${memberRollNumber.slice(0, 10)}_${Date.now()}`,
+                { groupId, memberRollNumber, type: 'individual_payment' }
+            );
 
-            if (!orderRes.ok) throw new Error('Failed to create payment order');
-            const order = await orderRes.json();
-
-            const keyRes = await fetch('/api/payments/key');
-            const { keyId } = await keyRes.json();
+            const { keyId } = await paymentsApi.getKey();
 
             const options = {
                 key: keyId,
@@ -99,24 +90,18 @@ const MemberPayment = () => {
                 },
                 handler: async (response: any) => {
                     try {
-                        // For individual payment, we can reuse the bulk verify logic if it supports single member
-                        // or create a simpler one. We use verifyBulkPayment with a single roll for now.
-                        const verifyRes = await fetch('/api/payments/bulk/verify', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                ...response,
-                                groupId,
-                                unpaidMemberRolls: [memberRollNumber]
-                            })
+                        const verifyRes = await paymentsApi.verifyBulk({
+                            ...response,
+                            groupId,
+                            unpaidMemberRolls: [memberRollNumber]
                         });
 
-                        if (!verifyRes.ok) throw new Error('Payment verification failed');
+                        if (!verifyRes.success) throw new Error(verifyRes.message || 'Payment verification failed');
                         setIsSuccess(true);
                         toast.success('Payment successful!');
                     } catch (err) {
                         console.error(err);
-                        toast.error('Failed to verify payment');
+                        toast.error(err instanceof Error ? err.message : 'Failed to verify payment');
                     } finally {
                         setIsProcessing(false);
                     }

@@ -387,7 +387,7 @@ export const joinGroup = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, memberRollNumber, photo, vote, size, phone, zoomLevel } = req.body;
+    const { name, email, memberRollNumber, photo, vote, size, phone, zoomLevel } = req.body;
     const normalizedPhone = standardizePhoneNumber(phone);
     if (!normalizedPhone) {
       return res.status(400).json({ message: 'Valid phone number is required' });
@@ -429,6 +429,7 @@ export const joinGroup = async (req, res) => {
     // Add member to group
     const newMember = {
       name,
+      email,
       memberRollNumber,
       photo,
       vote,
@@ -507,6 +508,7 @@ export const updateGroupTemplate = async (req, res) => {
     let winningTemplate = group.gridTemplate;
 
     for (const [template, count] of Object.entries(votes)) {
+      if (template === 'any') continue;
       if (count > maxVotes) {
         maxVotes = count;
         winningTemplate = template;

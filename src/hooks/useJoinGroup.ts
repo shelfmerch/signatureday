@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { debounce } from 'lodash';
 import { uploadToCloudinary } from '@/lib/cloudinary';
+import { groupApi } from '@/lib/api';
 import { calculatePricing } from '@/lib/pricing';
 import { generateInvoicePdfBase64 } from '@/lib/invoice';
 
@@ -225,27 +226,13 @@ export const useJoinGroup = (groupId: string | undefined) => {
 
     try {
       const activeGroup = group;
-      const token = localStorage.getItem('token');
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(`/api/groups/${groupId}/join`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          ...memberData,
-          photo: submitPhotoUrl || memberData.photo,
-          phone: verifiedPhone,
-          zoomLevel: memberData.zoomLevel
-        })
+      
+      await groupApi.joinGroup(groupId, {
+        ...memberData,
+        photo: submitPhotoUrl || memberData.photo,
+        phone: verifiedPhone,
+        zoomLevel: memberData.zoomLevel
       });
-
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(data?.message || 'Failed to join group');
-      }
 
       await getGroup(groupId, true);
 
