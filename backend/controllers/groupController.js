@@ -45,6 +45,8 @@ export const createGroup = async (req, res) => {
 
     // Create new group
     // Explicitly set ambassadorId to null if not provided (not undefined)
+    const pricePerMember = ambassadorId ? 149 : 189;
+
     const group = await Group.create({
       name,
       yearOfPassing,
@@ -55,7 +57,8 @@ export const createGroup = async (req, res) => {
       ambassadorId: ambassadorId || null, // Explicitly set to null if no ambassador
       referralCode: resolvedReferralCode || null, // Explicitly set to null if no referral
       referredAt: referredAt || null, // Explicitly set to null if no referral
-      createdByUserId: req.user?._id || null
+      createdByUserId: req.user?._id || null,
+      pricePerMember
     });
 
     if (group) {
@@ -432,6 +435,7 @@ export const joinGroup = async (req, res) => {
       size: size || 'm',
       zoomLevel: typeof zoomLevel === 'number' ? zoomLevel : 0.4,
       phone: normalizedPhone,
+      paidDeposit: false, // Explicitly false for new free joins
       joinedAt: new Date()
     };
 

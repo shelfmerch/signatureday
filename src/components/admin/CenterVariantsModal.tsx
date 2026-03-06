@@ -40,6 +40,7 @@ export const CenterVariantsModal: React.FC<CenterVariantsModalProps> = ({
   onSavedToBackend,
   gridType,
 }) => {
+  const effectiveGridType = gridType || (order.gridTemplate === 'hexagonal' ? 'hexagonal' : 'square');
   const hasSquareVariants = Boolean(
     fetchedVariants?.length && fetchedRenderedImages && Object.keys(fetchedRenderedImages).length > 0
   );
@@ -61,19 +62,16 @@ export const CenterVariantsModal: React.FC<CenterVariantsModalProps> = ({
   useEffect(() => {
     if (open) {
       if (isFetchedMode) {
-        // Determine which tab to show based on available data
-        if (hasSquareVariants && hasHexVariants) {
-          setActiveTab('square'); // Default to square when both are available
-        } else if (hasHexVariants) {
-          setActiveTab('hexagonal');
-        } else {
-          setActiveTab('square');
-        }
+        const effectiveGridType = gridType || (order.gridTemplate === 'hexagonal' ? 'hexagonal' : 'square');
+        setActiveTab(effectiveGridType);
 
-        // Load square variants if available
-        if (hasSquareVariants && fetchedVariants && fetchedRenderedImages) {
+        // Load variants based on the determined type
+        if (effectiveGridType === 'square' && hasSquareVariants && fetchedVariants && fetchedRenderedImages) {
           setVariants(fetchedVariants);
           setRenderedImages(fetchedRenderedImages);
+        } else if (effectiveGridType === 'hexagonal' && hasHexVariants && fetchedHexagonalVariants && fetchedHexagonalRenderedImages) {
+          setVariants(fetchedHexagonalVariants);
+          setRenderedImages(fetchedHexagonalRenderedImages);
         }
 
         setIsGenerating(false);
@@ -494,22 +492,24 @@ export const CenterVariantsModal: React.FC<CenterVariantsModalProps> = ({
               </p>
             )}
           </div>
-        ) : (isFetchedMode && (hasSquareVariants || hasHexVariants)) ? (
-          // Show tabbed interface when we have server-rendered variants
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'square' | 'hexagonal')}>
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="square" disabled={!hasSquareVariants} className="flex items-center gap-2">
-                <Grid className="h-4 w-4" />
-                Square Grid ({fetchedVariants?.length || 0})
-              </TabsTrigger>
-              <TabsTrigger value="hexagonal" disabled={!hasHexVariants} className="flex items-center gap-2">
-                <Hexagon className="h-4 w-4" />
-                Hexagonal Grid ({fetchedHexagonalVariants?.length || 0})
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="square">
-              {hasSquareVariants && fetchedVariants && fetchedRenderedImages && (
+        ) : (isFetchedMode && (effectiveGridType === 'square' ? hasSquareVariants : hasHexVariants)) ? (
+          // Show only the variants for the final layout
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
+              {effectiveGridType === 'hexagonal' ? (
+                <>
+                  <Hexagon className="h-4 w-4" />
+                  <span>Hexagonal Grid ({fetchedHexagonalVariants?.length || 0} variants)</span>
+                </>
+              ) : (
+                <>
+                  <Grid className="h-4 w-4" />
+                  <span>Square Grid ({fetchedVariants?.length || 0} variants)</span>
+                </>
+              )}
+            </div>
+            {effectiveGridType === 'square' ? (
+              hasSquareVariants && fetchedVariants && fetchedRenderedImages && (
                 <CenterVariantsGallery
                   variants={fetchedVariants}
                   renderedImages={fetchedRenderedImages}
@@ -517,11 +517,9 @@ export const CenterVariantsModal: React.FC<CenterVariantsModalProps> = ({
                   onDownloadAll={handleDownloadAll}
                   onPreview={handlePreview}
                 />
-              )}
-            </TabsContent>
-
-            <TabsContent value="hexagonal">
-              {hasHexVariants && fetchedHexagonalVariants && fetchedHexagonalRenderedImages && (
+              )
+            ) : (
+              hasHexVariants && fetchedHexagonalVariants && fetchedHexagonalRenderedImages && (
                 <CenterVariantsGallery
                   variants={fetchedHexagonalVariants}
                   renderedImages={fetchedHexagonalRenderedImages}
@@ -529,9 +527,9 @@ export const CenterVariantsModal: React.FC<CenterVariantsModalProps> = ({
                   onDownloadAll={handleDownloadAll}
                   onPreview={handlePreview}
                 />
-              )}
-            </TabsContent>
-          </Tabs>
+              )
+            )}
+          </div>
         ) : variants.length > 0 ? (
           // Client-side generation mode (for unpaid orders)
           <>

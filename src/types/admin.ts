@@ -41,6 +41,7 @@ export interface AdminMember {
     updatedAt?: string;
     description?: string;
     gridTemplate: 'square' | 'hexagonal';
+    layoutMode: 'square' | 'hexagonal' | 'voting';
     members: AdminMember[];
     shipping: Shipping;
     settings: OrderSettings;

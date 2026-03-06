@@ -24,6 +24,7 @@ import CollegeDashboard from "./pages/CollegeDashboard";
 import Editor from "./pages/Editor";
 import Checkout from "./pages/Checkout";
 import Success from "./pages/success";
+import MemberPayment from "./pages/MemberPayment";
 import NotFound from "./pages/NotFound";
 import { GoogleAuthCallback } from "./pages/GoogleAuthCallback";
 import AmbassadorSignup from "./pages/AmbassadorSignup";
@@ -175,6 +176,7 @@ const App = () => (
               {/* Render pages for server-side Puppeteer (no auth - token in URL) */}
               <Route path="/render/bootstrap/:orderId" element={<RenderBootstrap />} />
               <Route path="/render/canvas/:orderId/:variantId" element={<RenderCanvas />} />
+              <Route path="/pay-member/:groupId/:memberRollNumber" element={<MemberPayment />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

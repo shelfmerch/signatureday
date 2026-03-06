@@ -47,7 +47,7 @@
 //       try {
 //         setIsLoading(true);
 //         const token = LocalStorageService.loadAuthToken();
-        
+
 //         if (token) {
 //           try {
 //             // Try to get user profile from API
@@ -102,7 +102,7 @@
 //       setIsLoading(false);
 //     }
 //   };
-  
+
 
 //   const register = async (name: string, email: string, password: string): Promise<boolean> => {
 //     try {
@@ -135,20 +135,20 @@
 
 //     try {
 //       setIsLoading(true);
-      
+
 //       // Try API update
 //       try {
 //         const userData = await authApi.updateProfile(updates);
-        
+
 //         // Convert createdAt string to Date object
 //         const updatedUser = {
 //           ...userData,
 //           createdAt: new Date(userData.createdAt)
 //         };
-        
+
 //         // Save updated user data
 //         LocalStorageService.saveUserData(updatedUser);
-        
+
 //         // Update state
 //         setUser(updatedUser);
 //         return true;
@@ -167,17 +167,17 @@
 //   const loginWithGoogle = async (token: string): Promise<boolean> => {
 //     try {
 //       setIsLoading(true);
-      
+
 //       // Save the token
 //       LocalStorageService.saveAuthToken(token);
-      
+
 //       // Get user profile with the token
 //       const userData = await authApi.getProfile();
 //       const user = {
 //         ...userData,
 //         createdAt: new Date(userData.createdAt)
 //       };
-      
+
 //       // Save user data
 //       LocalStorageService.saveUserData(user);
 //       setUser(user);
@@ -244,6 +244,7 @@ interface User {
     editor: boolean;
     gridBoard?: boolean;
   };
+  phone?: string;
   createdAt: Date;
 }
 

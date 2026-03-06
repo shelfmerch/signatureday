@@ -386,24 +386,18 @@ const JoinGroup = () => {
                         !submitPhotoUrl ||
                         isUploadingPhoto ||
                         isSubmitting ||
-                        isProcessingPayment ||
                         Object.values(errors).some(error => error) ||
                         !isPhoneVerified
                       }
                     >
-                      {isProcessingPayment ? (
-                        <span className="flex items-center">
-                          <span className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin mr-2"></span>
-                          Processing Payment...
-                        </span>
-                      ) : isUploadingPhoto ? (
+                      {isUploadingPhoto ? (
                         <span className="flex items-center">
                           <span className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin mr-2"></span>
                           Uploading photo...
                         </span>
                       ) : (
                         <span className="flex items-center justify-center">
-                          💳 Pay ₹{joinPricing.perItemTotal} & Join Group
+                          Join Group
                         </span>
                       )}
                     </Button>

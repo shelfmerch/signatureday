@@ -712,3 +712,100 @@ export const confirmPayment = async (req, res) => {
     session.endSession();
   }
 };
+
+/**
+ * @desc    Verify bulk payment for multiple members
+ * @route   POST /api/payments/bulk/verify
+ * @access  Private (Leader)
+ */
+export const verifyBulkPayment = async (req, res) => {
+  try {
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      groupId,
+      unpaidMemberRolls
+    } = req.body || {};
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !groupId || !unpaidMemberRolls) {
+      return res.status(400).json({ success: false, message: 'Missing fields' });
+    }
+
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const payload = `${razorpay_order_id}|${razorpay_payment_id}`;
+    const expectedSignature = crypto.createHmac('sha256', keySecret).update(payload).digest('hex');
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ success: false, message: 'Invalid signature' });
+    }
+
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+
+    // Mark members as paid
+    let updateCount = 0;
+    group.members.forEach(m => {
+      if (unpaidMemberRolls.includes(m.memberRollNumber) && !m.paidDeposit) {
+        m.paidDeposit = true;
+        m.depositOrderId = razorpay_order_id;
+        m.depositPaymentId = razorpay_payment_id;
+        m.depositPaidAt = new Date();
+        m.depositAmountPaise = (group.pricePerMember || 189) * 100;
+        updateCount++;
+      }
+    });
+
+    if (updateCount > 0) {
+      await group.save();
+    }
+
+    return res.json({ success: true, message: `Successfully marked ${updateCount} members as paid` });
+  } catch (err) {
+    console.error('verifyBulkPayment error:', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+/**
+ * @desc    Send payment link to a member via email
+ * @route   POST /api/payments/member/send-link
+ * @access  Private (Leader)
+ */
+export const sendMemberPaymentLink = async (req, res) => {
+  try {
+    const { groupId, memberRollNumber } = req.body;
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ message: 'Group not found' });
+
+    const member = group.members.find(m => m.memberRollNumber === memberRollNumber);
+    if (!member) return res.status(404).json({ message: 'Member not found' });
+    if (!member.email) return res.status(400).json({ message: 'Member has no registered email' });
+
+    const paymentUrl = `${process.env.FRONTEND_URL || 'https://signatureday.com'}/pay-member/${groupId}/${memberRollNumber}`;
+
+    await sendMail({
+      to: member.email,
+      subject: `Payment Link for ${group.name}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+          <h2 style="color: #6d28d9;">Payment Required</h2>
+          <p>Hi ${member.name},</p>
+          <p>You have joined the group <strong>${group.name}</strong>. Please complete your payment to finalize your registration.</p>
+          <div style="margin: 30px 0;">
+            <a href="${paymentUrl}" style="background: #6d28d9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+              Pay ₹${group.pricePerMember || 189} Now
+            </a>
+          </div>
+          <p>If the button doesn't work, copy and paste this link: ${paymentUrl}</p>
+          <p>Thanks,<br>Signature Day Team</p>
+        </div>
+      `
+    });
+
+    return res.json({ success: true, message: 'Email sent successfully' });
+  } catch (err) {
+    console.error('sendMemberPaymentLink error:', err);
+    return res.status(500).json({ message: 'Failed to send email' });
+  }
+};

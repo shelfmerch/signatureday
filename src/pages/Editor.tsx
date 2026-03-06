@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Download, Users, Eye, Share, CreditCard, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Download, Users, Eye, Share, CreditCard, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { GridPreview } from "@/components/GridPreview";
 import { Suspense } from "react";
 import { toast } from "sonner";
@@ -48,6 +48,8 @@ const Editor = () => {
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [isCheckoutUpdating, setIsCheckoutUpdating] = useState(false);
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
+  const [isProcessingBulkPayment, setIsProcessingBulkPayment] = useState(false);
+  const [isSendingLink, setIsSendingLink] = useState<string | null>(null);
 
   const [userGroupsCount, setUserGroupsCount] = useState<number | null>(null);
 
@@ -198,6 +200,117 @@ const Editor = () => {
 
     fetchGroup();
   }, [groupId, getGroup, navigate]);
+
+  const loadRazorpayScript = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      if (document.getElementById('razorpay-sdk')) return resolve(true);
+      const script = document.createElement('script');
+      script.id = 'razorpay-sdk';
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+
+  const handleBulkPayment = async () => {
+    if (!group || !groupId) return;
+    const unpaidMembers = group.members.filter((m: Member) => !m.paidDeposit);
+    if (unpaidMembers.length === 0) {
+      toast.info('All members are already paid.');
+      return;
+    }
+
+    setIsProcessingBulkPayment(true);
+    try {
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) throw new Error('Failed to load Razorpay SDK');
+
+      const amount = unpaidMembers.length * (group.pricePerMember || 189);
+      const amountPaise = amount * 100;
+
+      const orderRes = await fetch('/api/payments/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({
+          amount: amountPaise,
+          currency: 'INR',
+          receipt: `bulk_${groupId}_${Date.now()}`,
+          notes: { groupId, type: 'bulk_payment' }
+        })
+      });
+
+      if (!orderRes.ok) throw new Error('Failed to create payment order');
+      const order = await orderRes.json();
+
+      const keyRes = await fetch('/api/payments/key');
+      const { keyId } = await keyRes.json();
+
+      const options = {
+        key: keyId,
+        amount: order.amount,
+        currency: 'INR',
+        name: 'Signature Day',
+        description: `Bulk Payment for ${group.name} (${unpaidMembers.length} members)`,
+        order_id: order.id,
+        prefill: {
+          name: user?.name,
+          email: user?.email,
+          contact: user?.phone
+        },
+        handler: async (response: any) => {
+          try {
+            const verifyRes = await fetch('/api/payments/bulk/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+              body: JSON.stringify({
+                ...response,
+                groupId,
+                unpaidMemberRolls: unpaidMembers.map((m: Member) => m.memberRollNumber)
+              })
+            });
+
+            if (!verifyRes.ok) throw new Error('Payment verification failed');
+            toast.success('Bulk payment successful!');
+            const refreshed = await getGroup(groupId, true);
+            if (refreshed) setGroup(refreshed);
+          } catch (err) {
+            console.error(err);
+            toast.error('Failed to verify payment');
+          } finally {
+            setIsProcessingBulkPayment(false);
+          }
+        },
+        modal: { ondismiss: () => setIsProcessingBulkPayment(false) },
+        theme: { color: '#6d28d9' }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : 'Payment failed');
+      setIsProcessingBulkPayment(false);
+    }
+  };
+
+  const handleSendPaymentLink = async (member: Member) => {
+    if (!groupId) return;
+    setIsSendingLink(member.memberRollNumber);
+    try {
+      const res = await fetch('/api/payments/member/send-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ groupId, memberRollNumber: member.memberRollNumber })
+      });
+      if (!res.ok) throw new Error('Failed to send link');
+      toast.success(`Payment link sent to ${member.name}`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to send link');
+    } finally {
+      setIsSendingLink(null);
+    }
+  };
   const handleGuideFinish = async () => {
     // 1. Immediate Persistence
     localStorage.setItem(tourStorageKey, 'true');
@@ -338,7 +451,7 @@ const Editor = () => {
         name: m.name,
         memberRollNumber: m.memberRollNumber,
         photo: m.photo,
-        vote: m.vote,
+        vote: (m.vote === 'any' ? winningTemplate : m.vote) as "square" | "hexagonal",
         joinedAt: m.joinedAt.toISOString(),
         size: m.size,
         phone: m.phone,
@@ -371,6 +484,7 @@ const Editor = () => {
       // Create order
       const newOrder: Order = {
         id: `ORD-${Date.now()}`,
+        layoutMode: winningTemplate,
         status: 'new',
         paid: true,
         paymentId: `DIRECT-${Date.now()}`,
@@ -453,8 +567,13 @@ const Editor = () => {
   };
 
   const completionPercentage = Math.round((group.members.length / group.totalMembers) * 100);
-  const winningTemplate = getWinningTemplate(group.votes, group.layoutMode);
+  const winningTemplate = getWinningTemplate(group.votes ?? { square: 0, hexagonal: 0 }, group.layoutMode);
   const isGridComplete = group.members.length === group.totalMembers;
+
+  // Payment calculations
+  const unpaidMembers = group.members.filter((m: Member) => !m.paidDeposit);
+  const totalUnpaidAmount = unpaidMembers.length * (group.pricePerMember || 189);
+  const isLeader = user?.id === group.leaderId;
 
   // Determine which member count to use based on toggle
   const displayMemberCount = showCurrentMembers ? group.members.length : group.totalMembers;
@@ -602,6 +721,39 @@ const Editor = () => {
                     <CardTitle className="text-lg sm:text-xl bg-gradient-to-r from-purple-600 to-pink-600 text-transparent bg-clip-text">Complete Your Payment</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 sm:space-y-4">
+                    {isLeader && (
+                      <div className="p-4 bg-purple-50/50 rounded-xl border border-purple-100 mb-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">Unpaid Members</span>
+                          <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">
+                            {unpaidMembers.length}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-sm font-medium text-gray-700">Total Due</span>
+                          <span className="text-lg font-bold text-purple-600">₹{totalUnpaidAmount}</span>
+                        </div>
+                        {unpaidMembers.length > 0 && (
+                          <Button
+                            onClick={handleBulkPayment}
+                            disabled={isProcessingBulkPayment}
+                            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md hover:shadow-lg transition-all text-xs"
+                          >
+                            {isProcessingBulkPayment ? (
+                              <RefreshCw className="h-3 w-3 mr-2 animate-spin" />
+                            ) : (
+                              <CreditCard className="h-3 w-3 mr-2" />
+                            )}
+                            {isProcessingBulkPayment ? "Processing..." : `Pay ₹${totalUnpaidAmount} for class`}
+                          </Button>
+                        )}
+                        {unpaidMembers.length === 0 && (
+                          <div className="text-center text-xs text-green-600 font-medium">
+                            All members have paid!
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <Button variant="outline" className="w-full text-sm sm:text-base py-2 sm:py-3" onClick={handleShare}>
                       <Share className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
@@ -681,6 +833,31 @@ const Editor = () => {
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-gray-900 text-sm sm:text-base truncate">{member.name}</p>
                               <p className="text-xs sm:text-sm text-gray-500 truncate">Roll No. {member.memberRollNumber}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {member.paidDeposit ? (
+                                <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none text-[10px] px-1.5">Paid</Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50 text-[10px] px-1.5">Unpaid</Badge>
+                              )}
+                              {isLeader && !member.paidDeposit && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-purple-600 hover:bg-purple-50 h-7 w-7 p-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSendPaymentLink(member);
+                                  }}
+                                  disabled={isSendingLink === member.memberRollNumber}
+                                >
+                                  {isSendingLink === member.memberRollNumber ? (
+                                    <RefreshCw className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Share className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              )}
                             </div>
                           </div>
                         ))}

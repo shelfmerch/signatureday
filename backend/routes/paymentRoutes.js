@@ -6,7 +6,9 @@ import {
   verifyPayment,
   verifyPaymentAndJoin,
   createPaymentIntent,
-  confirmPayment
+  confirmPayment,
+  verifyBulkPayment,
+  sendMemberPaymentLink
 } from '../controllers/paymentController.js';
 
 const router = express.Router();
@@ -20,9 +22,9 @@ router.post('/join/verify', verifyPaymentAndJoin);
 router.post('/order', protect, createRazorpayOrder);
 router.post('/verify', protect, verifyPayment);
 
-// Demo payment flow routes
-router.post('/intent', protect, createPaymentIntent);
-router.post('/confirm', protect, confirmPayment);
+// Bulk and individual payment routes
+router.post('/bulk/verify', protect, verifyBulkPayment);
+router.post('/member/send-link', protect, sendMemberPaymentLink);
 
 export default router;
 

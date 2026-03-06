@@ -121,7 +121,7 @@ export const getOrders = async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     const [data, total] = await Promise.all([
-      Order.find(query).sort(sort).skip(skip).limit(limitNum).populate('groupId', 'name').lean({ virtuals: true }),
+      Order.find(query).sort(sort).skip(skip).limit(limitNum).populate('groupId', 'name layoutMode gridTemplate').lean({ virtuals: true }),
       Order.countDocuments(query),
     ]);
 
@@ -133,6 +133,8 @@ export const getOrders = async (req, res) => {
     const orders = data.map((o) => {
       const g = o.groupId;
       const groupName = g?.name ?? undefined;
+      const layoutMode = g?.layoutMode ?? 'square'; // Default to square if group missing
+      const gridTemplate = g?.gridTemplate ?? o.gridTemplate ?? 'square';
       const groupIdStr = g ? (typeof g === 'object' && g._id ? String(g._id) : String(g)) : undefined;
       const oid = o.clientOrderId || String(o._id);
       const rs = renderMap[oid];
@@ -149,6 +151,8 @@ export const getOrders = async (req, res) => {
         id: oid,
         groupId: groupIdStr,
         groupName,
+        layoutMode,
+        gridTemplate,
         centerVariantsDone: done,
         centerVariantsTotal: total,
         centerVariantsStatus: status,
@@ -178,16 +182,20 @@ export const getOrderById = async (req, res) => {
       query = { clientOrderId: id };
     }
 
-    const order = await Order.findOne(query).populate('groupId', 'name').lean({ virtuals: true });
+    const order = await Order.findOne(query).populate('groupId', 'name layoutMode gridTemplate').lean({ virtuals: true });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     const g = order.groupId;
     const groupName = g?.name ?? undefined;
+    const layoutMode = g?.layoutMode ?? 'square';
+    const gridTemplate = g?.gridTemplate ?? order.gridTemplate ?? 'square';
     const groupIdStr = g ? (typeof g === 'object' && g._id ? String(g._id) : String(g)) : undefined;
     return res.json({
       ...order,
       id: order.clientOrderId || String(order._id),
       groupId: groupIdStr,
       groupName,
+      layoutMode,
+      gridTemplate,
     });
   } catch (err) {
     console.error('getOrderById error:', err);

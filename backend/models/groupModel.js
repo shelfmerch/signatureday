@@ -98,6 +98,10 @@ const groupSchema = new mongoose.Schema(
       enum: ['square', 'hexagonal', 'voting'],
       default: 'voting'
     },
+    pricePerMember: {
+      type: Number,
+      default: 189
+    },
     shareLink: {
       type: String,
       default: function () {
@@ -146,7 +150,7 @@ const groupSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['created', 'paid'],
+      enum: ['created', 'partially_paid', 'fully_paid', 'paid'],
       default: 'created',
       index: true
     },

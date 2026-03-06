@@ -66,7 +66,6 @@ export const OrderDetailPanel: React.FC<OrderDetailPanelProps> = ({ orderId }) =
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'preview' | 'editor' | 'settings'>('overview');
 
   // Grid type toggle for preview
-  const [previewGridType, setPreviewGridType] = useState<'square' | 'hexagonal'>('square');
 
   // Text editing helpers/state
   const [textContent, setTextContent] = useState('');
@@ -467,7 +466,7 @@ export const OrderDetailPanel: React.FC<OrderDetailPanelProps> = ({ orderId }) =
       const res = await ordersApi.getCenterVariants(order.id);
       const hasSquare = res.variants?.length > 0 && res.renderedImages && Object.keys(res.renderedImages).length > 0;
       const hasHex = res.hexagonalVariants?.length > 0 && res.hexagonalRenderedImages && Object.keys(res.hexagonalRenderedImages).length > 0;
-      
+
       if (hasSquare || hasHex) {
         setFetchedVariants(res.variants || []);
         setFetchedRenderedImages(res.renderedImages || {});
@@ -848,29 +847,7 @@ export const OrderDetailPanel: React.FC<OrderDetailPanelProps> = ({ orderId }) =
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <span>Grid Preview ({previewGridType})</span>
-                  <div className="flex items-center rounded-lg border p-1">
-                    <Button
-                      variant={previewGridType === 'square' ? 'default' : 'ghost'}
-                      size="sm"
-                      className="flex items-center gap-1.5 px-3"
-                      onClick={() => setPreviewGridType('square')}
-                    >
-                      <Square className="h-4 w-4" />
-                      <span className="text-xs">Square</span>
-                    </Button>
-                    <Button
-                      variant={previewGridType === 'hexagonal' ? 'default' : 'ghost'}
-                      size="sm"
-                      className="flex items-center gap-1.5 px-3"
-                      onClick={() => setPreviewGridType('hexagonal')}
-                    >
-                      <Hexagon className="h-4 w-4" />
-                      <span className="text-xs">Hexagon</span>
-                    </Button>
-                  </div>
-                </div>
+                <span>Grid Preview ({order.gridTemplate})</span>
                 <div className="flex items-center space-x-2">
                   {/* Show render status indicator */}
                   {order.centerVariantsStatus === 'processing' && (
@@ -948,9 +925,9 @@ export const OrderDetailPanel: React.FC<OrderDetailPanelProps> = ({ orderId }) =
                 </div>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <OrderGridPreview order={order} gridType={previewGridType} />
-            </CardContent>
+            <div className="w-full aspect-[21/27.5] max-h-[700px]">
+              <OrderGridPreview order={order} gridType={order.gridTemplate} />
+            </div>
           </Card>
         </TabsContent>
 
@@ -2139,7 +2116,7 @@ export const OrderDetailPanel: React.FC<OrderDetailPanelProps> = ({ orderId }) =
         fetchedHexagonalVariants={fetchedHexagonalVariants ?? undefined}
         fetchedHexagonalRenderedImages={fetchedHexagonalRenderedImages ?? undefined}
         onSavedToBackend={handleVariantsSavedToBackend}
-        gridType={previewGridType}
+        gridType={order.gridTemplate}
       />
     </div>
   );

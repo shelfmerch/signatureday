@@ -225,195 +225,58 @@ export const useJoinGroup = (groupId: string | undefined) => {
 
     try {
       const activeGroup = group;
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded) {
-        throw new Error('Failed to load Razorpay SDK');
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const receipt = `grp_join_${groupId.slice(-6)}_${Date.now()}`;
-      // Calculate amount in paise (must be integer for Razorpay)
-      const amountPaise = Math.round(joinPricing.total * 100);
-      const orderResponse = await fetch('/api/payments/join/order', {
+      const response = await fetch(`/api/groups/${groupId}/join`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
-          amount: amountPaise,
-          currency: 'INR',
-          receipt,
-          notes: { groupId, phone: verifiedPhone }
+          ...memberData,
+          photo: submitPhotoUrl || memberData.photo,
+          phone: verifiedPhone,
+          zoomLevel: memberData.zoomLevel
         })
       });
 
-      if (!orderResponse.ok) {
-        throw new Error('Failed to create payment order');
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.message || 'Failed to join group');
       }
 
-      const order = await orderResponse.json();
+      await getGroup(groupId, true);
 
-      const keyRes = await fetch('/api/payments/key');
-      if (!keyRes.ok) {
-        throw new Error('Failed to fetch payment key');
+      // Check if the joiner is the creator
+      let isLeaderLocal = false;
+      if (user && activeGroup) {
+        const joinerEmail = (memberData.email || '').trim().toLowerCase();
+        const creatorId = activeGroup.leaderId || (activeGroup as any).createdByUserId;
+        // If we have a user session, check if it matches the group owner
+        if (user.id === creatorId) {
+          isLeaderLocal = true;
+          await updateUser({ groupId, isLeader: true });
+        }
       }
-      const { keyId } = await keyRes.json();
 
-      const options = {
-        key: keyId,
-        amount: order.amount,
-        currency: 'INR',
-        name: activeGroup?.name ?? 'Signature Day',
-        description: activeGroup ? `${activeGroup.name} • Class of ${activeGroup.yearOfPassing}` : 'Signature Day Join Payment',
-        order_id: order.id,
-        prefill: {
-          name: memberData.name,
-          email: memberData.email,
-          contact: verifiedPhone
-        },
-        notes: { groupId },
-        handler: async (response: any) => {
-          try {
-            // Calculate price breakdown for invoice
-            // With ambassador (₹149): T-shirt ₹112, Print ₹30, GST ₹7 (5% of ₹30)
-            // Without ambassador (₹189): T-shirt ₹140, Print ₹40, GST ₹9 (5% of ₹40)
-            const groupAmbassadorId = (activeGroup as Group | undefined)?.ambassadorId;
-            const isAmbassadorGroup = !!(groupAmbassadorId && groupAmbassadorId !== null && groupAmbassadorId !== undefined && String(groupAmbassadorId).trim() !== '');
-            
-            const tshirtPrice = isAmbassadorGroup ? 112 : 140;
-            const printPrice = isAmbassadorGroup ? 30 : 40;
-            const gstRate = 0.05; // 5% GST on print cost only (for display purposes)
-            const perItemGst = isAmbassadorGroup ? 7 : 9; // Fixed GST: ₹7 (with ambassador) or ₹9 (without ambassador)
+      toast.success('Successfully joined the group!');
+      setIsSubmitting(false);
 
-            const invoiceBase64 = await generateInvoicePdfBase64(
-              {
-                name: 'CHITLU INNOVATIONS PRIVATE LIMITED',
-                address: 'G2, Win Win Towers, Siddhi Vinayaka Nagar, Madhapur, Hyderabad, Telangana – 500081, India',
-                gstin: '36AAHCC5155C1ZW',
-                cin: 'U74999TG2018PTC123754',
-                email: 'support@shelfmerch.com',
-                logoUrl: '/shelf-merch-logo.webp'
-              },
-              {
-                invoiceId: `INV-JOIN-${Date.now()}`,
-                orderId: response.razorpay_order_id,
-                dateISO: new Date().toISOString(),
-                customerName: memberData.name,
-                customerEmail: memberData.email,
-                placeOfSupply: 'Telangana', // Defaulting to local for now, or could be dynamic
-                paymentMethod: 'Razorpay UPI/Card/Netbanking',
-                transactionRef: response.razorpay_payment_id
-              },
-              [
-                {
-                  description: `${activeGroup?.name ?? 'Group'} Join Fee`,
-                  hsn: '6109',
-                  quantity: 1,
-                  unitPrice: tshirtPrice, // T-shirt price: ₹112 (with ambassador) or ₹140 (without)
-                  printPrice: printPrice, // Print cost: ₹30 (with ambassador) or ₹40 (without)
-                  taxRate: gstRate, // 5% for display purposes
-                  taxAmount: perItemGst // Fixed GST amount: ₹7 (with ambassador) or ₹9 (without)
-                }
-              ]
-            );
-
-            const token = localStorage.getItem('token');
-            const headers: HeadersInit = { 'Content-Type': 'application/json' };
-            if (token) {
-              headers['Authorization'] = `Bearer ${token}`;
-            }
-
-            const verifyResponse = await fetch('/api/payments/join/verify', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                groupId,
-                member: {
-                  ...memberData,
-                  photo: submitPhotoUrl || memberData.photo,
-                  phone: verifiedPhone,
-                  zoomLevel: memberData.zoomLevel
-                },
-                invoicePdfBase64: invoiceBase64,
-                invoiceFileName: `Invoice-${activeGroup?.name ?? 'Join'}-${Date.now()}.pdf`
-              })
-            });
-
-            const verifyData = await verifyResponse.json().catch(() => null);
-            if (!verifyResponse.ok || !verifyData?.success) {
-              throw new Error(verifyData?.message || 'Payment verification failed');
-            }
-
-            await getGroup(groupId, true);
-
-            const isCreatorRedirect = verifyData?.isCreator === true;
-
-            // Update role only for the actual joiner (match by email) so we never demote the leader
-            // when a member joins in the leader's browser.
-            let isLeaderLocal = false;
-            
-            if (user) {
-              const joinerEmail = (memberData.email || '').trim().toLowerCase();
-              const currentUserEmail = (user.email || '').trim().toLowerCase();
-              const isCurrentUserTheJoiner = !!joinerEmail && joinerEmail === currentUserEmail;
-
-              if (isCreatorRedirect) {
-                try {
-                  await updateUser({ groupId, isLeader: true });
-                  isLeaderLocal = true;
-                } catch (err) {
-                  console.warn('[JoinGroup] Skipping user update after payment:', err);
-                }
-              } else if (isCurrentUserTheJoiner) {
-                try {
-                  await updateUser({ groupId, isLeader: false });
-                } catch (err) {
-                  console.warn('[JoinGroup] Skipping user update after payment:', err);
-                }
-              }
-            }
-
-            toast.success('Payment successful! Welcome to the group.');
-            setIsSubmitting(false);
-            setIsProcessingPayment(false);
-
-            // Redirect logic: simple check for creator status
-            if (isCreatorRedirect || isLeaderLocal) {
-              navigate(`/dashboard/${groupId}`);
-            } else {
-              try {
-                sessionStorage.setItem('joinAsMember', '1');
-              } catch {
-                // ignore
-              }
-              navigate(`/success?groupId=${groupId}`);
-            }
-          } catch (err) {
-            console.error('Verify payment error:', err);
-            toast.error(err instanceof Error ? err.message : 'Failed to finalize payment.');
-            setIsSubmitting(false);
-            setIsProcessingPayment(false);
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            setIsSubmitting(false);
-            setIsProcessingPayment(false);
-            toast.info('Payment cancelled.');
-          }
-        },
-        theme: { color: '#6d28d9' }
-      };
-
-      const razorpay = new window.Razorpay(options);
-      razorpay.open();
-
+      if (isLeaderLocal) {
+        navigate(`/dashboard/${groupId}`);
+      } else {
+        try {
+          sessionStorage.setItem('joinAsMember', '1');
+        } catch { /* ignore */ }
+        navigate(`/success?groupId=${groupId}`);
+      }
 
     } catch (error) {
       console.error('[JoinGroup] Join error', error);
       toast.error(error instanceof Error ? error.message : 'Failed to join group.');
       setIsSubmitting(false);
-      setIsProcessingPayment(false);
     }
   }, [groupId, memberData, validateForm, verifiedPhone, isPhoneVerified, group, joinPricing.total, submitPhotoUrl, getGroup, updateUser, navigate, user]);
 

@@ -19,10 +19,12 @@ export interface Member {
   size?: 's' | 'm' | 'l' | 'xl' | 'xxl';
   phone?: string;
   zoomLevel?: number;
+  paidDeposit?: boolean;
 }
 
 export interface Group {
   id: string;
+  _id?: string;
   name: string;
   yearOfPassing: string;
   totalMembers: number;
@@ -39,6 +41,7 @@ export interface Group {
   createdAt: Date;
   members: Member[];
   votes: Record<GridTemplate, number>;
+  pricePerMember?: number;
 }
 
 interface CollageContextType {
