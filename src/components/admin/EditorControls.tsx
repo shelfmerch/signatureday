@@ -33,21 +33,21 @@ export const EditorControls: React.FC<EditorControlsProps> = ({ order, onSetting
 
   const handleWidthChange = (width: number) => {
     const newSettings: Partial<OrderSettings> = { widthPx: width };
-    
+
     if (settings.keepAspect) {
       newSettings.heightPx = Math.round(width / aspectRatio);
     }
-    
+
     updateSettings(newSettings);
   };
 
   const handleHeightChange = (height: number) => {
     const newSettings: Partial<OrderSettings> = { heightPx: height };
-    
+
     if (settings.keepAspect) {
       newSettings.widthPx = Math.round(height * aspectRatio);
     }
-    
+
     updateSettings(newSettings);
   };
 
@@ -62,13 +62,13 @@ export const EditorControls: React.FC<EditorControlsProps> = ({ order, onSetting
   const resetToDefaults = () => {
     const defaultSettings: OrderSettings = {
       widthPx: 2550, // 8.5" at 300 DPI
-      heightPx: 3300, // 11" at 300 DPI
+      heightPx: 3450, // 11.5" at 300 DPI
       keepAspect: true,
       gapPx: 4,
       cellScale: 1.0,
       dpi: 300
     };
-    
+
     setSettings(defaultSettings);
     setAspectRatio(defaultSettings.widthPx / defaultSettings.heightPx);
     onSettingsChange(defaultSettings);

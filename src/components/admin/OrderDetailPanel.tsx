@@ -52,7 +52,7 @@ export const OrderDetailPanel: React.FC<OrderDetailPanelProps> = ({ orderId }) =
   const CANVAS_DPI = 300;
   const [canvasSize, setCanvasSize] = useState({
     width: Math.round(8.5 * CANVAS_DPI),
-    height: Math.round(12 * CANVAS_DPI),
+    height: Math.round(11.5 * CANVAS_DPI),
   });
   const DISPLAY_SCALE = 96 / CANVAS_DPI; // scale 300-DPI canvas down for on-screen editing
   const [canvasHistory, setCanvasHistory] = useState<CanvasElement[][]>([]);
@@ -205,67 +205,28 @@ export const OrderDetailPanel: React.FC<OrderDetailPanelProps> = ({ orderId }) =
     if (!ctx) return;
     drawRollCardToCanvas(ctx, w, h, canvasElements);
 
-    const addDpiToPng = (pngBlob: Blob, dpiVal: number): Promise<Blob> => {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as ArrayBuffer;
-          const data = new Uint8Array(result);
-          const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
-          for (let i = 0; i < 8; i++) if (data[i] !== PNG_SIGNATURE[i]) { resolve(pngBlob); return; }
-          const ppu = Math.round(dpiVal * 39.3701);
-          const chunkType = new TextEncoder().encode('pHYs');
-          const chunkData = new Uint8Array(9);
-          const dv = new DataView(chunkData.buffer);
-          dv.setUint32(0, ppu);
-          dv.setUint32(4, ppu);
-          chunkData[8] = 1;
-          const lengthBytes = new Uint8Array(4);
-          new DataView(lengthBytes.buffer).setUint32(0, 9);
-          const crc32 = (buf: Uint8Array): number => {
-            let c = 0xffffffff;
-            for (let i = 0; i < buf.length; i++) {
-              c ^= buf[i];
-              for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
-            }
-            return (c ^ 0xffffffff) >>> 0;
-          };
-          const crcInput = new Uint8Array(4 + chunkData.length);
-          crcInput.set(chunkType, 0);
-          crcInput.set(chunkData, 4);
-          const crcBytes = new Uint8Array(4);
-          new DataView(crcBytes.buffer).setUint32(0, crc32(crcInput));
-          const offset = 8;
-          const length = new DataView(result, offset, 4).getUint32(0);
-          const ihdrTotal = 4 + 4 + length + 4;
-          const insertPos = 8 + ihdrTotal;
-          const before = data.slice(0, insertPos);
-          const after = data.slice(insertPos);
-          const assembled = new Uint8Array(before.length + 4 + 4 + 9 + 4 + after.length);
-          let p = 0;
-          assembled.set(before, p); p += before.length;
-          assembled.set(lengthBytes, p); p += 4;
-          assembled.set(chunkType, p); p += 4;
-          assembled.set(chunkData, p); p += 9;
-          assembled.set(crcBytes, p); p += 4;
-          assembled.set(after, p);
-          resolve(new Blob([assembled], { type: 'image/png' }));
-        };
-        reader.readAsArrayBuffer(pngBlob);
-      });
-    };
+    canvas.toBlob(async (rawBlob) => {
+      if (!rawBlob) return;
+      try {
+        const { addDpiToPng } = await import('@/utils/pngDpi');
+        // Extract the name from the canvas text elements, or fallback to the order's shipping name
+        let textOverlayName = canvasElements.find(el => el.id.startsWith('el-name-'))?.content;
+        if (!textOverlayName || textOverlayName.trim() === 'Name') {
+          textOverlayName = order?.shipping?.name || 'Customer';
+        }
 
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
-      const withDpi = await addDpiToPng(blob, CANVAS_DPI);
-      const url = URL.createObjectURL(withDpi);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'roll-card-300dpi.png';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+        const withDpi = await addDpiToPng(rawBlob, CANVAS_DPI, textOverlayName);
+        const url = URL.createObjectURL(withDpi);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'roll-card-300dpi.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error('Failed to encode DPI and name overlay:', err);
+      }
     }, 'image/png');
   };
 
@@ -2047,6 +2008,22 @@ export const OrderDetailPanel: React.FC<OrderDetailPanelProps> = ({ orderId }) =
                           </div>
                         );
                       })}
+
+                      {/* Name Overlay Preview (mirrored bottom-right) */}
+                      <div
+                        className="absolute text-black font-bold drop-shadow-[0_0_2px_rgba(255,255,255,1)]"
+                        style={{
+                          bottom: '30px',
+                          right: '30px',
+                          transform: 'scaleX(-1)',
+                          fontSize: '40px',
+                          fontFamily: 'Arial',
+                          WebkitTextStroke: '2px white',
+                          pointerEvents: 'none'
+                        }}
+                      >
+                        {canvasElements.find(el => el.id.startsWith('el-name-'))?.content || order?.shipping?.name || 'Customer'}
+                      </div>
                     </div>
 
                     {/* Canvas Overlay for Drop Zone */}

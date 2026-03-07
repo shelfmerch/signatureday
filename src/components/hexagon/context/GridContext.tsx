@@ -150,7 +150,7 @@ export const GridProvider: React.FC<{ children: React.ReactNode } & Partial<Pick
 
     ctx.scale(deviceScale, deviceScale);
     ctx.imageSmoothingEnabled = true;
-    try { (ctx as any).imageSmoothingQuality = 'high'; } catch {}
+    try { (ctx as any).imageSmoothingQuality = 'high'; } catch { }
 
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, widthPx, heightPx);
@@ -212,7 +212,7 @@ export const GridProvider: React.FC<{ children: React.ReactNode } & Partial<Pick
               const afterKB = (finalBlob.size / 1024).toFixed(1);
               const saved = rawBlob.size > 0 ? (((rawBlob.size - finalBlob.size) / rawBlob.size) * 100).toFixed(1) : '0';
               console.info(`[OxiPNG] Optimized PNG: ${beforeKB}KB -> ${afterKB}KB (${saved}% saved)`);
-            } catch {}
+            } catch { }
           } else {
             console.info('[OxiPNG] No savings achieved; keeping original PNG.');
           }
@@ -222,6 +222,13 @@ export const GridProvider: React.FC<{ children: React.ReactNode } & Partial<Pick
       } catch (optErr) {
         // Fallback to the original blob if optimization fails or lib missing
         console.info('[OxiPNG] Optimization skipped due to error:', optErr);
+      }
+
+      try {
+        const { addDpiToPng } = await import('@/utils/pngDpi');
+        finalBlob = await addDpiToPng(finalBlob, finalOpts.dpi ?? 300);
+      } catch (dpiErr) {
+        console.warn('Failed to encode DPI:', dpiErr);
       }
 
       const url = URL.createObjectURL(finalBlob);

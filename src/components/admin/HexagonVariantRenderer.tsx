@@ -259,25 +259,39 @@ export const HexagonVariantRenderer: React.FC<HexagonVariantRendererProps> = ({
 
                 const { slots, viewBox } = result;
 
-                // Create canvas with high DPI
-                const scale = 2; // 2x for better quality
+                // Create canvas with 300 DPI (8.5 x 11.5 inches => 2550 x 3450 px)
+                const TARGET_W_PX = 2550;
+                const TARGET_H_PX = 3450;
                 const canvas = document.createElement('canvas');
-                canvas.width = viewBox.width * scale;
-                canvas.height = viewBox.height * scale;
+                canvas.width = TARGET_W_PX;
+                canvas.height = TARGET_H_PX;
                 const ctx = canvas.getContext('2d');
-
                 if (!ctx) {
                     console.error('[HexagonVariantRenderer] Failed to get canvas context');
                     onRendered(variant.id, '');
                     return;
                 }
 
-                // Scale the context for high DPI
-                ctx.scale(scale, scale);
-
                 // White background
                 ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, viewBox.width, viewBox.height);
+                ctx.fillRect(0, 0, TARGET_W_PX, TARGET_H_PX);
+
+                // Calculate scaling to fit viewBox proportionally within the 2550 x 3450 area
+                // Leave a small margin (e.g., 20px) to avoid touching the edges
+                const margin = 20;
+                const availableW = TARGET_W_PX - (margin * 2);
+                const availableH = TARGET_H_PX - (margin * 2);
+
+                const scaleW = availableW / viewBox.width;
+                const scaleH = availableH / viewBox.height;
+                const finalScale = Math.min(scaleW, scaleH);
+
+                // Center the grid on the canvas
+                const offsetX = (TARGET_W_PX - (viewBox.width * finalScale)) / 2;
+                const offsetY = (TARGET_H_PX - (viewBox.height * finalScale)) / 2;
+
+                ctx.translate(offsetX, offsetY);
+                ctx.scale(finalScale, finalScale);
 
                 // Get photo for slot
                 const getPhotoForSlot = (slotIndex: number): string => {
@@ -344,6 +358,36 @@ export const HexagonVariantRenderer: React.FC<HexagonVariantRendererProps> = ({
                         console.warn(`[HexagonVariantRenderer] Failed to load image for slot ${i}:`, err);
                         // Keep the cyan background as fallback
                     }
+                }
+
+                // Draw the center member's name at the right bottom corner (reversed/mirrored)
+                if (variant.centerMember?.name) {
+                    ctx.save();
+                    // Reset any transforms from the hexagon scaling/centering
+                    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+                    // Move to bottom right with a small padding
+                    ctx.translate(canvas.width - 30, canvas.height - 30);
+                    // Mirror horizontally for the "reverse" effect
+                    ctx.scale(-1, 1);
+
+                    // Text configuration
+                    ctx.font = 'bold 40px Arial';
+                    ctx.fillStyle = '#000000';
+
+                    // Draw white outline for better visibility against varying backgrounds
+                    ctx.lineWidth = 8;
+                    ctx.lineJoin = 'round';
+                    ctx.strokeStyle = '#ffffff';
+
+                    // In a -1 scaled X-axis, 'left' alignment makes the text expand towards the visual left.
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'bottom';
+
+                    ctx.strokeText(variant.centerMember.name, 0, 0);
+                    ctx.fillText(variant.centerMember.name, 0, 0);
+
+                    ctx.restore();
                 }
 
                 // Export to PNG with 300 DPI

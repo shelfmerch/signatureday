@@ -77,14 +77,14 @@ export const CenterVariantsGallery: React.FC<CenterVariantsGalleryProps> = ({
   };
 
   const handleSelectVariant = (variantId: string) => {
-    setSelectedVariants(prev => 
-      prev.includes(variantId) 
+    setSelectedVariants(prev =>
+      prev.includes(variantId)
         ? prev.filter(id => id !== variantId)
         : [...prev, variantId]
     );
   };
 
-  const handleDownloadSingle = (variantId: string) => {
+  const handleDownloadSingle = async (variantId: string) => {
     const imageData = renderedImages[variantId];
     if (!imageData) {
       toast.error('Image not ready for download');
@@ -101,7 +101,6 @@ export const CenterVariantsGallery: React.FC<CenterVariantsGalleryProps> = ({
     // Normalize via Cloudinary helper (adds f_auto,q_auto safely)
     const safeUrl = cloudinarySafeUrl(imageData) || imageData;
 
-    // For Cloudinary URLs, add fl_attachment to force download with filename
     if (safeUrl.includes('cloudinary.com')) {
       const marker = safeUrl.includes('/image/upload/')
         ? '/image/upload/'
@@ -112,7 +111,7 @@ export const CenterVariantsGallery: React.FC<CenterVariantsGalleryProps> = ({
       if (marker) {
         downloadUrl = safeUrl.replace(
           marker,
-          `${marker}fl_attachment:${baseFilename}/`
+          `${marker}f_png,w_2550,h_3450,c_pad,b_white/`
         );
       } else {
         downloadUrl = safeUrl;
@@ -121,14 +120,27 @@ export const CenterVariantsGallery: React.FC<CenterVariantsGalleryProps> = ({
       downloadUrl = safeUrl;
     }
 
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `${baseFilename}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success('Variant downloaded successfully');
+    toast.info('Preparing high-res download...');
+    try {
+      const { addDpiToPng } = await import('@/utils/pngDpi');
+      const response = await fetch(downloadUrl);
+      const blob = await response.blob();
+      const finalBlob = await addDpiToPng(blob, 300, variant.centerMember.name);
+      const objectUrl = URL.createObjectURL(finalBlob);
+
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `${baseFilename}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      toast.success('Variant downloaded successfully');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to prepare high-res image');
+    }
   };
 
   const handlePreviewVariant = (variant: GridVariant) => {
@@ -201,7 +213,7 @@ export const CenterVariantsGallery: React.FC<CenterVariantsGalleryProps> = ({
             {selectedVariants.length} of {variants.length} selected
           </span>
         </div>
-        
+
         <div className="flex items-center space-x-2">
           <Button
             variant="outline"
@@ -222,7 +234,7 @@ export const CenterVariantsGallery: React.FC<CenterVariantsGalleryProps> = ({
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {variants.map((variant) => {
           const imageData = renderedImages[variant.id];
-          
+
           const isSelected = selectedVariants.includes(variant.id);
           const safeImageData = cloudinarySafeUrl(imageData);
           if (imageData && safeImageData && safeImageData !== imageData) {
@@ -232,7 +244,7 @@ export const CenterVariantsGallery: React.FC<CenterVariantsGalleryProps> = ({
               safe: safeImageData,
             });
           }
-          
+
           return (
             <Card key={variant.id} className={`relative overflow-hidden transition-all ${isSelected ? 'ring-2 ring-primary' : ''}`}>
               <CardContent className="p-2">
@@ -250,7 +262,7 @@ export const CenterVariantsGallery: React.FC<CenterVariantsGalleryProps> = ({
                       <span className="text-sm text-muted-foreground">Rendering...</span>
                     </div>
                   )}
-                  
+
                   {/* Selection Checkbox */}
                   <div className="absolute top-2 left-2">
                     <Checkbox
@@ -259,7 +271,7 @@ export const CenterVariantsGallery: React.FC<CenterVariantsGalleryProps> = ({
                       className="bg-white/80 backdrop-blur-sm"
                     />
                   </div>
-                  
+
                   {/* Action Buttons */}
                   {imageData && (
                     <div className="absolute bottom-2 right-2 flex space-x-1">
@@ -282,7 +294,7 @@ export const CenterVariantsGallery: React.FC<CenterVariantsGalleryProps> = ({
                     </div>
                   )}
                 </div>
-                
+
                 <div className="mt-2">
                   <p className="text-sm font-medium truncate">{variant.centerMember.name}</p>
                   <p className="text-xs text-muted-foreground">Center Position</p>
@@ -303,13 +315,25 @@ export const CenterVariantsGallery: React.FC<CenterVariantsGalleryProps> = ({
           </DialogHeader>
           {previewVariant && renderedImages[previewVariant.id] && (
             <div className="flex justify-center">
-              <img
-                src={previewSafeUrl}
-                data-raw-src={previewRawUrl}
-                onError={handleImgError}
-                alt={`Preview of variant with ${previewVariant.centerMember.name} in center`}
-                className="max-w-full max-h-96 object-contain rounded"
-              />
+              <div className="relative inline-block max-w-full">
+                <img
+                  src={previewSafeUrl}
+                  data-raw-src={previewRawUrl}
+                  onError={handleImgError}
+                  alt={`Preview of variant with ${previewVariant.centerMember.name} in center`}
+                  className="max-w-full max-h-[70vh] object-contain rounded drop-shadow-md"
+                />
+                <div
+                  className="absolute bottom-[2%] right-[2%] text-black font-bold drop-shadow-[0_0_2px_rgba(255,255,255,1)]"
+                  style={{
+                    transform: 'scaleX(-1)',
+                    fontSize: 'clamp(14px, 4vw, 36px)',
+                    WebkitTextStroke: '1px white'
+                  }}
+                >
+                  {previewVariant.centerMember.name}
+                </div>
+              </div>
             </div>
           )}
         </DialogContent>

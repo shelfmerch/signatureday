@@ -375,7 +375,7 @@ export const CenterVariantsModal: React.FC<CenterVariantsModalProps> = ({
       return;
     }
 
-    const downloadImage = (variantId: string) => {
+    const downloadImage = async (variantId: string) => {
       const imageData = renderedImages[variantId];
       const variant = variants.find(v => v.id === variantId);
       if (!imageData || !variant) return;
@@ -384,7 +384,6 @@ export const CenterVariantsModal: React.FC<CenterVariantsModalProps> = ({
 
       let downloadUrl = imageData;
 
-      // For Cloudinary URLs, add fl_attachment to force download with filename
       if (imageData.includes('cloudinary.com')) {
         const marker = imageData.includes('/image/upload/')
           ? '/image/upload/'
@@ -395,17 +394,30 @@ export const CenterVariantsModal: React.FC<CenterVariantsModalProps> = ({
         if (marker) {
           downloadUrl = imageData.replace(
             marker,
-            `${marker}fl_attachment:${baseFilename}/`
+            `${marker}f_png,w_2550,h_3450,c_pad,b_white/`
           );
         }
       }
 
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `${baseFilename}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      try {
+        const { addDpiToPng } = await import('@/utils/pngDpi');
+        const response = await fetch(downloadUrl);
+        const blob = await response.blob();
+        const finalBlob = await addDpiToPng(blob, 300, variant.centerMember.name);
+        const objectUrl = URL.createObjectURL(finalBlob);
+
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = `${baseFilename}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      } catch (err) {
+        console.error(err);
+        toast.error(`Failed to download ${baseFilename}`);
+      }
     };
 
     if (variantIds.length === 1) {

@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { Order } from '@/types/admin';
 import { GridVariant } from '@/utils/gridVariantGenerator';
 import * as faceapi from 'face-api.js';
-import {enumerate12, enumerate13, enumerate14, enumerate15, enumerate16, enumerate17, enumerate18, enumerate19, enumerate20, enumerate33, enumerate34, enumerate35, enumerate36, enumerate37, enumerate38, enumerate39, enumerate40, enumerate41, enumerate42, enumerate43, enumerate44, enumerate45, enumerate46, enumerate47, enumerate48, enumerate49, enumerate50, enumerate51, enumerate52, enumerate53, enumerate54, enumerate55, enumerate56, enumerate57, enumerate58, enumerate59, enumerate60, enumerate61, enumerate62, enumerate63, enumerate64, enumerate65, enumerate66, enumerate67, enumerate68, enumerate69, enumerate70, enumerate71, enumerate72, enumerate73, enumerate74, enumerate75, enumerate76, enumerate77, enumerate78, enumerate79, enumerate80, enumerate81, enumerate82, enumerate83, enumerate84, enumerate85, enumerate86, enumerate87, enumerate88, enumerate89, enumerate90, enumerate91, enumerate92, enumerate93, enumerate94, enumerate95, enumerate96 } from '@/templates/layouts';
+import { enumerate12, enumerate13, enumerate14, enumerate15, enumerate16, enumerate17, enumerate18, enumerate19, enumerate20, enumerate33, enumerate34, enumerate35, enumerate36, enumerate37, enumerate38, enumerate39, enumerate40, enumerate41, enumerate42, enumerate43, enumerate44, enumerate45, enumerate46, enumerate47, enumerate48, enumerate49, enumerate50, enumerate51, enumerate52, enumerate53, enumerate54, enumerate55, enumerate56, enumerate57, enumerate58, enumerate59, enumerate60, enumerate61, enumerate62, enumerate63, enumerate64, enumerate65, enumerate66, enumerate67, enumerate68, enumerate69, enumerate70, enumerate71, enumerate72, enumerate73, enumerate74, enumerate75, enumerate76, enumerate77, enumerate78, enumerate79, enumerate80, enumerate81, enumerate82, enumerate83, enumerate84, enumerate85, enumerate86, enumerate87, enumerate88, enumerate89, enumerate90, enumerate91, enumerate92, enumerate93, enumerate94, enumerate95, enumerate96 } from '@/templates/layouts';
 import * as layouts from '@/templates/layouts';
 
 interface VariantRendererProps {
@@ -74,7 +74,7 @@ function uint8ToDataURL(bytes: Uint8Array): string {
 function insertPhysChunk(pngBytes: Uint8Array, dpi: number): Uint8Array {
   const PPM = Math.round(dpi / 0.0254); // pixels per meter (300dpi ≈ 11811)
   const signature = pngBytes.slice(0, 8);
-  const PNG_SIG = new Uint8Array([137,80,78,71,13,10,26,10]);
+  const PNG_SIG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
   for (let i = 0; i < 8; i++) if (signature[i] !== PNG_SIG[i]) return pngBytes; // not a PNG
 
   // Walk chunks and insert pHYs right after IHDR
@@ -220,10 +220,10 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
         const is51to56 = effectiveKey === '51' || effectiveKey === '52' || effectiveKey === '53' || effectiveKey === '54' || effectiveKey === '55' || effectiveKey === '56';
         const is57to74 = effectiveKey === '57' || effectiveKey === '58' || effectiveKey === '59' || effectiveKey === '60' || effectiveKey === '61' || effectiveKey === '62' || effectiveKey === '63' || effectiveKey === '64' || effectiveKey === '65' || effectiveKey === '66' || effectiveKey === '67' || effectiveKey === '68' || effectiveKey === '69' || effectiveKey === '70' || effectiveKey === '71' || effectiveKey === '72' || effectiveKey === '73' || effectiveKey === '74';
         const is75to92 = effectiveKey === '75' || effectiveKey === '76' || effectiveKey === '77' || effectiveKey === '78' || effectiveKey === '79' || effectiveKey === '80' || effectiveKey === '81' || effectiveKey === '82' || effectiveKey === '83' || effectiveKey === '84' || effectiveKey === '85' || effectiveKey === '86' || effectiveKey === '87' || effectiveKey === '88' || effectiveKey === '89' || effectiveKey === '90' || effectiveKey === '91' || effectiveKey === '92';
-        const TARGET_W_IN = is37to50 || is8to19 ? 8 : 8.5;
-        const TARGET_H_IN = is8to19 ? 13.0 : 13.5;
+        const TARGET_W_IN = 8.5;
+        const TARGET_H_IN = 11.5;
         const COLS = is51to56 || is57to74 ? 9 : is75to92 ? 11 : is8to19 ? 6 : is20to23 ? 7 : 8;
-        const ROWS = is57to74 ? 9 : is75to92 ? 11 : is8to19 || is20to23 ? 7 : 10
+        const ROWS = is57to74 ? 9 : is75to92 ? 11 : is8to19 || is20to23 ? 7 : 10;
         const gap = 4; // align with desiredGapPx used in downloads
         canvas.width = Math.round(TARGET_W_IN * DPI);
         canvas.height = Math.round(TARGET_H_IN * DPI);
@@ -264,24 +264,24 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
             }
 
             const img = new Image();
-            
+
             // Handle data URLs differently - they don't need CORS
             if (safeSrc.startsWith('data:')) {
               img.crossOrigin = undefined;
             } else {
               img.crossOrigin = 'anonymous';
             }
-            
+
             let timeoutId: NodeJS.Timeout | null = null;
             let resolved = false;
-            
+
             const cleanup = () => {
               if (timeoutId) {
                 clearTimeout(timeoutId);
                 timeoutId = null;
               }
             };
-            
+
             const drawPlaceholder = () => {
               if (resolved) return;
               ctx.fillStyle = '#f3f4f6';
@@ -292,11 +292,11 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               ctx.textBaseline = 'middle';
               ctx.fillText('No Image', x + w / 2, y + h / 2);
             };
-            
+
             img.onload = async () => {
               cleanup();
               if (resolved) return;
-              
+
               try {
                 // Try face-aware crop first (await detection)
                 const { sx, sy, sw, sh } = await getFaceAwareCropAsync(img, w, h);
@@ -318,11 +318,11 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
                 }
               }
             };
-            
+
             img.onerror = (error) => {
               cleanup();
               if (resolved) return;
-              
+
               // If HEIC/HEIF still fails, try swapping extension to .jpg (still through Cloudinary).
               if (!didSecondAttempt) {
                 const second = cloudinarySafeUrl(cloudinarySecondAttempt(src));
@@ -352,7 +352,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               resolved = true;
               resolve();
             };
-            
+
             // Set a timeout to prevent hanging
             timeoutId = setTimeout(() => {
               if (!resolved && !img.complete) {
@@ -363,21 +363,21 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
                 resolve();
               }
             }, 15000); // 15 second timeout per image
-            
+
             // Validate and start loading the image
             try {
               // Validate the source
               if (!safeSrc || safeSrc.trim() === '') {
                 throw new Error('Empty image source');
               }
-              
+
               // For data URLs, validate the format
               if (safeSrc.startsWith('data:')) {
                 if (!safeSrc.includes(',')) {
                   throw new Error('Invalid data URL format');
                 }
               }
-              
+
               img.src = safeSrc;
             } catch (srcError) {
               cleanup();
@@ -424,7 +424,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-        } 
+        }
         else if (effectiveKey === '12') {
           await enumerate12(async (slot) => {
             if (slot.kind === 'center') {
@@ -452,7 +452,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-        } 
+        }
         else if (effectiveKey === '13') {
           await enumerate13(async (slot) => {
             if (slot.kind === 'center') {
@@ -480,7 +480,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-        } 
+        }
         else if (effectiveKey === '14') {
           await enumerate14(async (slot) => {
             if (slot.kind === 'center') {
@@ -508,7 +508,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-        } 
+        }
         else if (effectiveKey === '15') {
           await enumerate15(async (slot) => {
             if (slot.kind === 'center') {
@@ -536,7 +536,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-        } 
+        }
         else if (effectiveKey === '16') {
           await enumerate16(async (slot) => {
             if (slot.kind === 'center') {
@@ -564,7 +564,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-        } 
+        }
         else if (effectiveKey === '17') {
           await enumerate17(async (slot) => {
             if (slot.kind === 'center') {
@@ -592,8 +592,8 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-        } 
-        else if (effectiveKey === '18'){
+        }
+        else if (effectiveKey === '18') {
           await enumerate18(async (slot) => {
             if (slot.kind === 'center') {
               if (variant.centerMember?.photo) {
@@ -648,7 +648,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-        } else if (effectiveKey === '20'){
+        } else if (effectiveKey === '20') {
           await enumerate20(async (slot) => {
             if (slot.kind === 'center') {
               if (variant.centerMember?.photo) {
@@ -703,39 +703,39 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
             }
           });
         } else if (effectiveKey === '34') {
-        await enumerate34(async (slot) => {
-          if (slot.kind === 'center') {
-            if (variant.centerMember?.photo) {
-              await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-            } else {
-              const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-              ctx.fillStyle = '#f3f4f6';
-              ctx.fillRect(x, y, w, h);
+          await enumerate34(async (slot) => {
+            if (slot.kind === 'center') {
+              if (variant.centerMember?.photo) {
+                await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+              } else {
+                const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+                ctx.fillStyle = '#f3f4f6';
+                ctx.fillRect(x, y, w, h);
+              }
+              return;
             }
-            return;
-          }
-          const m = slot.index >= 0 ? memberAt(slot.index) : null;
-          if (m?.photo) {
-            await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-          }
-        });
+            const m = slot.index >= 0 ? memberAt(slot.index) : null;
+            if (m?.photo) {
+              await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+            }
+          });
         } else if (effectiveKey === '35') {
-        await enumerate35(async (slot) => {
-          if (slot.kind === 'center') {
-            if (variant.centerMember?.photo) {
-              await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-            } else {
-              const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-              ctx.fillStyle = '#f3f4f6';
-              ctx.fillRect(x, y, w, h);
+          await enumerate35(async (slot) => {
+            if (slot.kind === 'center') {
+              if (variant.centerMember?.photo) {
+                await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+              } else {
+                const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+                ctx.fillStyle = '#f3f4f6';
+                ctx.fillRect(x, y, w, h);
+              }
+              return;
             }
-            return;
-          }
-          const m = slot.index >= 0 ? memberAt(slot.index) : null;
-          if (m?.photo) {
-            await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-          }
-        });
+            const m = slot.index >= 0 ? memberAt(slot.index) : null;
+            if (m?.photo) {
+              await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+            }
+          });
         } else if (effectiveKey === '36') {
           await enumerate36(async (slot) => {
             if (slot.kind === 'center') {
@@ -790,75 +790,75 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-     
+
         } else if (effectiveKey === '38') {
-        await enumerate38(async (slot) => {
-          if (slot.kind === 'center') {
-            if (variant.centerMember?.photo) {
-              await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-            } else {
-              const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-              ctx.fillStyle = '#f3f4f6';
-              ctx.fillRect(x, y, w, h);
+          await enumerate38(async (slot) => {
+            if (slot.kind === 'center') {
+              if (variant.centerMember?.photo) {
+                await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+              } else {
+                const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+                ctx.fillStyle = '#f3f4f6';
+                ctx.fillRect(x, y, w, h);
+              }
+              return;
             }
-            return;
-          }
-          const m = slot.index >= 0 ? memberAt(slot.index) : null;
-          if (m?.photo) {
-            await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-          }
-        });
-      } else if (effectiveKey === '17') {
-      await enumerate17(async (slot) => {
-        if (slot.kind === 'center') {
-          if (variant.centerMember?.photo) {
-            await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-          } else {
-            const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-            ctx.fillStyle = '#f3f4f6';
-            ctx.fillRect(x, y, w, h);
-          }
-          return;
-        }
-        const m = slot.index >= 0 ? memberAt(slot.index) : null;
-        if (m?.photo) {
-          await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-        }
-      });
-    //   } else if (effectiveKey === '39') {
-    //   await enumerate39(async (slot) => {
-    //     if (slot.kind === 'center') {
-    //       if (variant.centerMember?.photo) {
-    //         await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-    //       } else {
-    //         const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-    //         ctx.fillStyle = '#f3f4f6';
-    //         ctx.fillRect(x, y, w, h);
-    //       }
-    //       return;
-    //     }
-    //     const m = slot.index >= 0 ? memberAt(slot.index) : null;
-    //     if (m?.photo) {
-    //       await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-    //     }
-    //   });
-    //   } else if (effectiveKey === '40') {
-    //   await enumerate40(async (slot) => {
-    //     if (slot.kind === 'center') {
-    //       if (variant.centerMember?.photo) {
-    //         await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-    //       } else {
-    //         const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-    //         ctx.fillStyle = '#f3f4f6';
-    //         ctx.fillRect(x, y, w, h);
-    //       }
-    //       return;
-    //     }
-    //     const m = slot.index >= 0 ? memberAt(slot.index) : null;
-    //     if (m?.photo) {
-    //       await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-    //     }
-    //   });
+            const m = slot.index >= 0 ? memberAt(slot.index) : null;
+            if (m?.photo) {
+              await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+            }
+          });
+        } else if (effectiveKey === '17') {
+          await enumerate17(async (slot) => {
+            if (slot.kind === 'center') {
+              if (variant.centerMember?.photo) {
+                await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+              } else {
+                const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+                ctx.fillStyle = '#f3f4f6';
+                ctx.fillRect(x, y, w, h);
+              }
+              return;
+            }
+            const m = slot.index >= 0 ? memberAt(slot.index) : null;
+            if (m?.photo) {
+              await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+            }
+          });
+          //   } else if (effectiveKey === '39') {
+          //   await enumerate39(async (slot) => {
+          //     if (slot.kind === 'center') {
+          //       if (variant.centerMember?.photo) {
+          //         await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+          //       } else {
+          //         const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+          //         ctx.fillStyle = '#f3f4f6';
+          //         ctx.fillRect(x, y, w, h);
+          //       }
+          //       return;
+          //     }
+          //     const m = slot.index >= 0 ? memberAt(slot.index) : null;
+          //     if (m?.photo) {
+          //       await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+          //     }
+          //   });
+          //   } else if (effectiveKey === '40') {
+          //   await enumerate40(async (slot) => {
+          //     if (slot.kind === 'center') {
+          //       if (variant.centerMember?.photo) {
+          //         await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+          //       } else {
+          //         const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+          //         ctx.fillStyle = '#f3f4f6';
+          //         ctx.fillRect(x, y, w, h);
+          //       }
+          //       return;
+          //     }
+          //     const m = slot.index >= 0 ? memberAt(slot.index) : null;
+          //     if (m?.photo) {
+          //       await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+          //     }
+          //   });
         } else if (effectiveKey === '39') {
           await enumerate39(async (slot) => {
             if (slot.kind === 'center') {
@@ -886,24 +886,24 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-      
+
         } else if (effectiveKey === '40') {
-        await enumerate40(async (slot) => {
-          if (slot.kind === 'center') {
-            if (variant.centerMember?.photo) {
-              await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-            } else {
-              const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-              ctx.fillStyle = '#f3f4f6';
-              ctx.fillRect(x, y, w, h);
+          await enumerate40(async (slot) => {
+            if (slot.kind === 'center') {
+              if (variant.centerMember?.photo) {
+                await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+              } else {
+                const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+                ctx.fillStyle = '#f3f4f6';
+                ctx.fillRect(x, y, w, h);
+              }
+              return;
             }
-            return;
-          }
-          const m = slot.index >= 0 ? memberAt(slot.index) : null;
-          if (m?.photo) {
-            await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-          }
-        });
+            const m = slot.index >= 0 ? memberAt(slot.index) : null;
+            if (m?.photo) {
+              await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+            }
+          });
         } else if (effectiveKey === '41') {
           await enumerate41(async (slot) => {
             if (slot.kind === 'center') {
@@ -959,39 +959,39 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
             }
           });
         } else if (effectiveKey === '43') {
-            await enumerate43(async (slot) => {
-              if (slot.kind === 'center') {
-                if (variant.centerMember?.photo) {
-                  await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-                } else {
-                  const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-                  ctx.fillStyle = '#f3f4f6';
-                  ctx.fillRect(x, y, w, h);
-                }
-                return;
+          await enumerate43(async (slot) => {
+            if (slot.kind === 'center') {
+              if (variant.centerMember?.photo) {
+                await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+              } else {
+                const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+                ctx.fillStyle = '#f3f4f6';
+                ctx.fillRect(x, y, w, h);
               }
-              const m = slot.index >= 0 ? memberAt(slot.index) : null;
-              if (m?.photo) {
-                await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-              }
-            });
+              return;
+            }
+            const m = slot.index >= 0 ? memberAt(slot.index) : null;
+            if (m?.photo) {
+              await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+            }
+          });
         } else if (effectiveKey === '44') {
-              await enumerate44(async (slot) => {
-                if (slot.kind === 'center') {
-                  if (variant.centerMember?.photo) {
-                    await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-                  } else {
-                    const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-                    ctx.fillStyle = '#f3f4f6';
-                    ctx.fillRect(x, y, w, h);
-                  }
-                  return;
-                }
-                const m = slot.index >= 0 ? memberAt(slot.index) : null;
-                if (m?.photo) {
-                  await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
-                }
-              });
+          await enumerate44(async (slot) => {
+            if (slot.kind === 'center') {
+              if (variant.centerMember?.photo) {
+                await drawCover(variant.centerMember.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+              } else {
+                const { x, y, w, h } = rect(slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+                ctx.fillStyle = '#f3f4f6';
+                ctx.fillRect(x, y, w, h);
+              }
+              return;
+            }
+            const m = slot.index >= 0 ? memberAt(slot.index) : null;
+            if (m?.photo) {
+              await drawCover(m.photo, slot.c, slot.r, slot.cspan ?? 1, slot.rspan ?? 1);
+            }
+          });
         } else if (effectiveKey === '46') {
           await enumerate46(async (slot) => {
             if (slot.kind === 'center') {
@@ -2073,7 +2073,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-        }else if (effectiveKey === '86') {
+        } else if (effectiveKey === '86') {
           await enumerate86(async (slot) => {
             if (slot.kind === 'center') {
               if (variant.centerMember?.photo) {
@@ -2154,7 +2154,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-        }else if (effectiveKey === '89') {
+        } else if (effectiveKey === '89') {
           await enumerate89(async (slot) => {
             if (slot.kind === 'center') {
               if (variant.centerMember?.photo) {
@@ -2289,7 +2289,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-        }else if (effectiveKey === '94') {
+        } else if (effectiveKey === '94') {
           await enumerate94(async (slot) => {
             if (slot.kind === 'center') {
               if (variant.centerMember?.photo) {
@@ -2316,7 +2316,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-        }else if (effectiveKey === '95') {
+        } else if (effectiveKey === '95') {
           await enumerate95(async (slot) => {
             if (slot.kind === 'center') {
               if (variant.centerMember?.photo) {
@@ -2343,7 +2343,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
               }
             }
           });
-        }else if (effectiveKey === '96') {
+        } else if (effectiveKey === '96') {
           await enumerate96(async (slot) => {
             if (slot.kind === 'center') {
               if (variant.centerMember?.photo) {
@@ -2375,7 +2375,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
           // Fallback: Try to dynamically call the enumerate function if it exists
           const enumerateFnName = `enumerate${effectiveKey}`;
           const enumerateFn = (layouts as any)[enumerateFnName];
-          
+
           if (typeof enumerateFn === 'function') {
             console.log(`[VariantRenderer] Using dynamic enumerate function: ${enumerateFnName}`);
             await enumerateFn(async (slot: any) => {
@@ -2399,6 +2399,34 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
             console.warn(`[VariantRenderer] Available enumerate functions:`, Object.keys(layouts).filter(k => k.startsWith('enumerate')));
           }
         }
+
+        // Draw the center member's name at the right bottom corner (reversed/mirrored)
+        if (variant.centerMember?.name) {
+          ctx.save();
+          // Move to bottom right with a small padding
+          ctx.translate(canvas.width - 30, canvas.height - 30);
+          // Mirror horizontally for the "reverse" effect
+          ctx.scale(-1, 1);
+
+          // Text configuration
+          ctx.font = 'bold 40px Arial';
+          ctx.fillStyle = '#000000';
+
+          // Draw white outline for better visibility against varying backgrounds
+          ctx.lineWidth = 8;
+          ctx.lineJoin = 'round';
+          ctx.strokeStyle = '#ffffff';
+
+          // In a -1 scaled X-axis, 'left' alignment makes the text expand towards the visual left.
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'bottom';
+
+          ctx.strokeText(variant.centerMember.name, 0, 0);
+          ctx.fillText(variant.centerMember.name, 0, 0);
+
+          ctx.restore();
+        }
+
         // Export with embedded 300 DPI (pHYs chunk)
         const rawPng = canvas.toDataURL('image/png');
         if (!rawPng || rawPng === 'data:,') {
@@ -2410,11 +2438,11 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
 
       } catch (error) {
         // Check if this is an image loading error that we're handling gracefully
-        const isImageLoadError = error instanceof Error && 
-          (error.message.includes('Failed to load image') || 
-           error.message.includes('timeout') ||
-           error.message.includes('Invalid image source'));
-        
+        const isImageLoadError = error instanceof Error &&
+          (error.message.includes('Failed to load image') ||
+            error.message.includes('timeout') ||
+            error.message.includes('Invalid image source'));
+
         if (isImageLoadError) {
           // Image loading errors are handled gracefully with placeholders
           // Log as warning instead of error to avoid confusion
@@ -2434,7 +2462,7 @@ export const VariantRenderer: React.FC<VariantRendererProps> = ({
             membersWithPhotos: order.members.filter(m => m?.photo).length
           });
         }
-        
+
         // Try to generate a fallback image with placeholders
         try {
           // Create a minimal valid canvas image
