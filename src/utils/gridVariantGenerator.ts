@@ -268,6 +268,7 @@ export function getTemplateLayout(template: string, memberCount: number): Templa
       109: { totalCells: 109, description: 'Hexagonal 109-cell grid with center' },
       110: { totalCells: 110, description: 'Hexagonal 110-cell grid with center' },
       112: { totalCells: 112, description: 'Hexagonal 112-cell grid with center' },
+      40: { totalCells: 40, description: 'Hexagonal 40-cell grid with center' },
     };
 
     const hexLayout = hexLayouts[memberCount];

@@ -11,7 +11,7 @@ export default function RouteTracker() {
   const location = useLocation();
 
   useEffect(() => {
-    window.gtag?.("config", "G-QZKFTRKY9E", {
+    window.gtag?.("config", "G-5ZVSMBV7EY", {
       page_path: location.pathname + location.search,
       page_location: window.location.href,
       page_title: document.title,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
-import { Edit3, Save, Download, Package, User, CreditCard, Users, Eye, Settings, Grid, Edit, Upload, Layers, Type, Palette, ZoomIn, ZoomOut, Download as DownloadIcon, Hexagon, Square } from 'lucide-react';
+import { Edit3, Save, Download, Package, User, CreditCard, Users, Eye, Settings, Grid, Edit, Upload, Layers, Type, Palette, ZoomIn, ZoomOut, Download as DownloadIcon, Hexagon, Square, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,6 +27,8 @@ import { canGenerateVariants } from '@/utils/gridCenterUtils';
 import { generateGridVariants } from '@/utils/gridVariantGenerator';
 import { toast } from 'sonner';
 import { CollageEditor } from './CollageEditor';
+import { InvoiceLayout } from './InvoiceLayout';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 interface OrderDetailPanelProps {
   orderId: string;
 }
@@ -59,6 +61,7 @@ export const OrderDetailPanel: React.FC<OrderDetailPanelProps> = ({ orderId }) =
   const [isTyping, setIsTyping] = useState(false);
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < canvasHistory.length - 1;
 
@@ -479,6 +482,23 @@ export const OrderDetailPanel: React.FC<OrderDetailPanelProps> = ({ orderId }) =
 
   return (
     <div className="h-full overflow-y-auto p-6 space-y-6">
+      <Dialog open={showInvoiceModal} onOpenChange={setShowInvoiceModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto print:p-0 print:max-h-none print:shadow-none">
+          <DialogHeader className="print:hidden">
+            <DialogTitle className="flex justify-between items-center mr-8">
+              <span>Order Invoice</span>
+              <Button size="sm" variant="outline" onClick={() => window.print()}>
+                <Printer className="h-4 w-4 mr-2" />
+                Print Invoice
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="bg-white rounded-lg shadow-sm print:shadow-none">
+            <InvoiceLayout order={order} />
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Order Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -492,6 +512,15 @@ export const OrderDetailPanel: React.FC<OrderDetailPanelProps> = ({ orderId }) =
             {order.paid ? 'Paid' : 'Unpaid'}
           </Badge>
           <Badge variant="outline">{order.status}</Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowInvoiceModal(true)}
+            className="flex items-center space-x-2"
+          >
+            <CreditCard className="h-4 w-4" />
+            <span>Invoice</span>
+          </Button>
         </div>
       </div>
 
