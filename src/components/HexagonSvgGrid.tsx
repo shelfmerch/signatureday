@@ -12,6 +12,192 @@ type Slot = {
 
 const hexagonSvgModules = import.meta.glob<string>('./hexagon/*.svg', { as: 'raw' });
 
+type ViewBox = { width: number; height: number };
+
+function parseViewBox(svg: SVGSVGElement | null | undefined): ViewBox {
+  const vb = svg?.getAttribute('viewBox');
+  if (!vb) return { width: 595.3, height: 936 };
+  const parts = vb.split(/\s+/).map(Number);
+  if (parts.length >= 4 && Number.isFinite(parts[2]) && Number.isFinite(parts[3])) {
+    return { width: parts[2], height: parts[3] };
+  }
+  return { width: 595.3, height: 936 };
+}
+
+function applyMatrix(m: DOMMatrix | SVGMatrix, x: number, y: number) {
+  // DOMMatrix: a b c d e f
+  const a = (m as any).a ?? 1;
+  const b = (m as any).b ?? 0;
+  const c = (m as any).c ?? 0;
+  const d = (m as any).d ?? 1;
+  const e = (m as any).e ?? 0;
+  const f = (m as any).f ?? 0;
+  return { x: a * x + c * y + e, y: b * x + d * y + f };
+}
+
+function bboxFromTransformedRect(bb: DOMRect, ctm: DOMMatrix | SVGMatrix | null) {
+  if (!ctm) {
+    return { x: bb.x, y: bb.y, width: bb.width, height: bb.height, cx: bb.x + bb.width / 2, cy: bb.y + bb.height / 2 };
+  }
+  const p1 = applyMatrix(ctm, bb.x, bb.y);
+  const p2 = applyMatrix(ctm, bb.x + bb.width, bb.y);
+  const p3 = applyMatrix(ctm, bb.x, bb.y + bb.height);
+  const p4 = applyMatrix(ctm, bb.x + bb.width, bb.y + bb.height);
+  const minX = Math.min(p1.x, p2.x, p3.x, p4.x);
+  const maxX = Math.max(p1.x, p2.x, p3.x, p4.x);
+  const minY = Math.min(p1.y, p2.y, p3.y, p4.y);
+  const maxY = Math.max(p1.y, p2.y, p3.y, p4.y);
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+}
+
+function extractSlotsFromSvg(doc: Document): { slots: Slot[]; viewBox: ViewBox } | null {
+  const svg = doc.querySelector('svg') as unknown as SVGSVGElement | null;
+  const viewBox = parseViewBox(svg);
+
+  const polygons = Array.from(doc.querySelectorAll('polygon'));
+  if (polygons.length > 0) {
+    const raw: Array<{
+      id: string;
+      d: string;
+      transform?: string;
+      pointCount: number;
+      cx: number;
+      cy: number;
+      bbox: { x: number; y: number; width: number; height: number };
+    }> = [];
+    polygons.forEach((poly) => {
+      const points = poly.getAttribute('points');
+      if (!points) return;
+      const coords = points.trim().split(/[\s,]+/).map(Number);
+      if (coords.length < 6) return;
+
+      let sumX = 0, sumY = 0, n = 0;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (let i = 0; i < coords.length; i += 2) {
+        const x = coords[i];
+        const y = coords[i + 1];
+        sumX += x;
+        sumY += y;
+        n++;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+      const cx = n > 0 ? sumX / n : 0;
+      const cy = n > 0 ? sumY / n : 0;
+      const bbox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+
+      const parts: string[] = ['M', String(coords[0]), String(coords[1])];
+      for (let i = 2; i < coords.length; i += 2) {
+        parts.push('L', String(coords[i]), String(coords[i + 1]));
+      }
+      parts.push('Z');
+
+      raw.push({
+        id: `slot-${raw.length}`,
+        d: parts.join(' '),
+        transform: poly.getAttribute('transform') ?? undefined,
+        pointCount: coords.length / 2,
+        cx,
+        cy,
+        bbox,
+      });
+    });
+
+    if (raw.length === 0) return null;
+
+    const maxPoints = Math.max(...raw.map((r) => r.pointCount));
+    const centerSlots = raw.filter((r) => r.pointCount === maxPoints && r.pointCount > 15);
+    const borderSlots = raw.filter((r) => !(r.pointCount === maxPoints && r.pointCount > 15));
+
+    const centerX = viewBox.width / 2;
+    const centerY = viewBox.height / 2;
+    const sortedBorder = [...borderSlots].sort((a, b) => {
+      const angleA = Math.atan2(a.cy - centerY, a.cx - centerX);
+      const angleB = Math.atan2(b.cy - centerY, b.cx - centerX);
+      const normA = ((angleA + Math.PI / 2) + Math.PI * 2) % (Math.PI * 2);
+      const normB = ((angleB + Math.PI / 2) + Math.PI * 2) % (Math.PI * 2);
+      return normA - normB;
+    });
+
+    const slots: Slot[] = [
+      ...centerSlots.map((s) => ({ id: s.id, d: s.d, transform: s.transform, isCenter: true, bbox: s.bbox })),
+      ...sortedBorder.map((s) => ({ id: s.id, d: s.d, transform: s.transform, isCenter: false, bbox: s.bbox })),
+    ];
+    return { slots, viewBox };
+  }
+
+  // Fallback for path-based templates (e.g. PDF-exported SVGs like 40.svg)
+  const paths = Array.from(doc.querySelectorAll('path')).filter((p) => {
+    const fill = (p.getAttribute('fill') || '').trim().toLowerCase();
+    return fill !== '' && fill !== 'none';
+  });
+  if (paths.length === 0) return null;
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const measureSvg = document.createElementNS(ns, 'svg');
+  measureSvg.setAttribute('viewBox', `0 0 ${viewBox.width} ${viewBox.height}`);
+  measureSvg.style.position = 'absolute';
+  measureSvg.style.left = '-10000px';
+  measureSvg.style.top = '-10000px';
+  measureSvg.style.width = '0';
+  measureSvg.style.height = '0';
+  measureSvg.style.visibility = 'hidden';
+  document.body.appendChild(measureSvg);
+
+  try {
+    const raw = paths.map((p, idx) => {
+      const d = p.getAttribute('d') || '';
+      const transform = p.getAttribute('transform') ?? undefined;
+      const clone = document.createElementNS(ns, 'path');
+      clone.setAttribute('d', d);
+      if (transform) clone.setAttribute('transform', transform);
+      measureSvg.appendChild(clone);
+
+      const bb = clone.getBBox();
+      const ctm = clone.getCTM();
+      const tbb = bboxFromTransformedRect(bb, ctm);
+
+      measureSvg.removeChild(clone);
+      const approxPointCount = Math.max(6, (d.match(/[ML]/gi)?.length ?? 0));
+      return {
+        id: `slot-${idx}`,
+        d,
+        transform,
+        pointCount: approxPointCount,
+        cx: tbb.cx,
+        cy: tbb.cy,
+        bbox: { x: tbb.x, y: tbb.y, width: tbb.width, height: tbb.height },
+        area: tbb.width * tbb.height,
+      };
+    }).filter((r) => Number.isFinite(r.bbox.width) && Number.isFinite(r.bbox.height) && r.bbox.width > 0 && r.bbox.height > 0);
+
+    if (raw.length === 0) return null;
+
+    const center = raw.reduce((best, cur) => (cur.area > best.area ? cur : best), raw[0]);
+    const border = raw.filter((r) => r !== center);
+
+    const centerX = viewBox.width / 2;
+    const centerY = viewBox.height / 2;
+    const sortedBorder = [...border].sort((a, b) => {
+      const angleA = Math.atan2(a.cy - centerY, a.cx - centerX);
+      const angleB = Math.atan2(b.cy - centerY, b.cx - centerX);
+      const normA = ((angleA + Math.PI / 2) + Math.PI * 2) % (Math.PI * 2);
+      const normB = ((angleB + Math.PI / 2) + Math.PI * 2) % (Math.PI * 2);
+      return normA - normB;
+    });
+
+    const slots: Slot[] = [
+      { id: center.id, d: center.d, transform: center.transform, isCenter: true, bbox: center.bbox },
+      ...sortedBorder.map((s) => ({ id: s.id, d: s.d, transform: s.transform, isCenter: false, bbox: s.bbox })),
+    ];
+    return { slots, viewBox };
+  } finally {
+    document.body.removeChild(measureSvg);
+  }
+}
+
 // Same placeholders as square grid: center = female, others alternate male/female (clipped inside hex).
 const PLACEHOLDER_FEMALE = '/placeholders/placeholder-female.jpg';
 const PLACEHOLDER_MALE = '/placeholders/placeholder-male.jpg';
@@ -75,94 +261,13 @@ export const HexagonSvgGrid: React.FC<HexagonSvgGridProps> = ({
     (loader as () => Promise<string>)()
       .then((text) => {
         const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
-        const svg = doc.querySelector('svg');
-        const vb = svg?.getAttribute('viewBox');
-        if (vb) {
-          const parts = vb.split(/\s+/).map(Number);
-          if (parts.length >= 4) setViewBox({ width: parts[2], height: parts[3] });
+        const extracted = extractSlotsFromSvg(doc);
+        if (!extracted) {
+          setError('No slots found');
+          return;
         }
-
-        const raw: Array<{
-          id: string;
-          d: string;
-          transform?: string;
-          pointCount: number;
-          cx: number;
-          cy: number;
-          bbox: { x: number; y: number; width: number; height: number };
-        }> = [];
-        const vbParts = (svg?.getAttribute('viewBox') || '0 0 595.3 936').split(/\s+/).map(Number);
-        const vw = vbParts[2] || 595.3;
-        const vh = vbParts[3] || 936;
-
-        // Parse polygons only (hexagon SVGs use polygon)
-        const polygons = Array.from(doc.querySelectorAll('polygon'));
-        polygons.forEach((poly) => {
-          const points = poly.getAttribute('points');
-          if (points) {
-            const coords = points.trim().split(/[\s,]+/).map(Number);
-            if (coords.length >= 6) {
-              let sumX = 0, sumY = 0, n = 0;
-              let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-              for (let i = 0; i < coords.length; i += 2) {
-                const x = coords[i];
-                const y = coords[i + 1];
-                sumX += x;
-                sumY += y;
-                n++;
-                minX = Math.min(minX, x);
-                minY = Math.min(minY, y);
-                maxX = Math.max(maxX, x);
-                maxY = Math.max(maxY, y);
-              }
-              const cx = n > 0 ? sumX / n : 0;
-              const cy = n > 0 ? sumY / n : 0;
-              const bbox = {
-                x: minX,
-                y: minY,
-                width: maxX - minX,
-                height: maxY - minY,
-              };
-              const parts: string[] = ['M', String(coords[0]), String(coords[1])];
-              for (let i = 2; i < coords.length; i += 2) {
-                parts.push('L', String(coords[i]), String(coords[i + 1]));
-              }
-              parts.push('Z');
-              raw.push({
-                id: `slot-${raw.length}`,
-                d: parts.join(' '),
-                transform: poly.getAttribute('transform') ?? undefined,
-                pointCount: coords.length / 2,
-                cx,
-                cy,
-                bbox,
-              });
-            }
-          }
-        });
-
-        // Center = polygon with most points (the large central hexagon)
-        const maxPoints = Math.max(...raw.map((r) => r.pointCount));
-        const centerSlots = raw.filter((r) => r.pointCount === maxPoints && r.pointCount > 15);
-        const borderSlots = raw.filter((r) => !(r.pointCount === maxPoints && r.pointCount > 15));
-
-        // Sort border slots clockwise: top (1-3) → right (4-8) → bottom (9-11) → left (12-14)
-        const centerX = vw / 2;
-        const centerY = vh / 2;
-        const sortedBorder = [...borderSlots].sort((a, b) => {
-          const angleA = Math.atan2(a.cy - centerY, a.cx - centerX);
-          const angleB = Math.atan2(b.cy - centerY, b.cx - centerX);
-          const normA = ((angleA + Math.PI / 2) + Math.PI * 2) % (Math.PI * 2);
-          const normB = ((angleB + Math.PI / 2) + Math.PI * 2) % (Math.PI * 2);
-          return normA - normB;
-        });
-
-        const ordered: Slot[] = [
-          ...centerSlots.map((s) => ({ id: s.id, d: s.d, transform: s.transform, isCenter: true, bbox: s.bbox })),
-          ...sortedBorder.map((s) => ({ id: s.id, d: s.d, transform: s.transform, isCenter: false, bbox: s.bbox })),
-        ];
-
-        setSlots(ordered);
+        setViewBox(extracted.viewBox);
+        setSlots(extracted.slots);
         setError(null);
       })
       .catch((err) => {

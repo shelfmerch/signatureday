@@ -37,6 +37,43 @@ type Slot = {
     cy: number;
 };
 
+type ViewBox = { width: number; height: number };
+
+function parseViewBox(svg: SVGSVGElement | null | undefined): ViewBox {
+    const vb = svg?.getAttribute('viewBox');
+    if (!vb) return { width: 595.3, height: 936 };
+    const parts = vb.split(/\s+/).map(Number);
+    if (parts.length >= 4 && Number.isFinite(parts[2]) && Number.isFinite(parts[3])) {
+        return { width: parts[2], height: parts[3] };
+    }
+    return { width: 595.3, height: 936 };
+}
+
+function applyMatrix(m: DOMMatrix | SVGMatrix, x: number, y: number) {
+    const a = (m as any).a ?? 1;
+    const b = (m as any).b ?? 0;
+    const c = (m as any).c ?? 0;
+    const d = (m as any).d ?? 1;
+    const e = (m as any).e ?? 0;
+    const f = (m as any).f ?? 0;
+    return { x: a * x + c * y + e, y: b * x + d * y + f };
+}
+
+function bboxFromTransformedRect(bb: DOMRect, ctm: DOMMatrix | SVGMatrix | null) {
+    if (!ctm) {
+        return { x: bb.x, y: bb.y, width: bb.width, height: bb.height, cx: bb.x + bb.width / 2, cy: bb.y + bb.height / 2 };
+    }
+    const p1 = applyMatrix(ctm, bb.x, bb.y);
+    const p2 = applyMatrix(ctm, bb.x + bb.width, bb.y);
+    const p3 = applyMatrix(ctm, bb.x, bb.y + bb.height);
+    const p4 = applyMatrix(ctm, bb.x + bb.width, bb.y + bb.height);
+    const minX = Math.min(p1.x, p2.x, p3.x, p4.x);
+    const maxX = Math.max(p1.x, p2.x, p3.x, p4.x);
+    const minY = Math.min(p1.y, p2.y, p3.y, p4.y);
+    const maxY = Math.max(p1.y, p2.y, p3.y, p4.y);
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+}
+
 // Parse hexagon SVG and extract slots
 async function parseHexagonSvg(memberCount: number): Promise<{ slots: Slot[]; viewBox: { width: number; height: number } } | null> {
     const key = resolveSvgPath(memberCount);
@@ -54,14 +91,8 @@ async function parseHexagonSvg(memberCount: number): Promise<{ slots: Slot[]; vi
     try {
         const text = await (loader as () => Promise<string>)();
         const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
-        const svg = doc.querySelector('svg');
-
-        let viewBox = { width: 595.3, height: 936 };
-        const vb = svg?.getAttribute('viewBox');
-        if (vb) {
-            const parts = vb.split(/\s+/).map(Number);
-            if (parts.length >= 4) viewBox = { width: parts[2], height: parts[3] };
-        }
+        const svg = doc.querySelector('svg') as unknown as SVGSVGElement | null;
+        const viewBox = parseViewBox(svg);
 
         const raw: Array<{
             id: string;
@@ -71,63 +102,120 @@ async function parseHexagonSvg(memberCount: number): Promise<{ slots: Slot[]; vi
             cx: number;
             cy: number;
             bbox: { x: number; y: number; width: number; height: number };
+            area: number;
         }> = [];
 
-        // Parse polygons (hexagon SVGs use polygon)
         const polygons = Array.from(doc.querySelectorAll('polygon'));
-        polygons.forEach((poly) => {
-            const points = poly.getAttribute('points');
-            if (points) {
+        if (polygons.length > 0) {
+            polygons.forEach((poly) => {
+                const points = poly.getAttribute('points');
+                if (!points) return;
                 const coords = points.trim().split(/[\s,]+/).map(Number);
-                if (coords.length >= 6) {
-                    let sumX = 0, sumY = 0, n = 0;
-                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                    for (let i = 0; i < coords.length; i += 2) {
-                        const x = coords[i];
-                        const y = coords[i + 1];
-                        sumX += x;
-                        sumY += y;
-                        n++;
-                        minX = Math.min(minX, x);
-                        minY = Math.min(minY, y);
-                        maxX = Math.max(maxX, x);
-                        maxY = Math.max(maxY, y);
-                    }
-                    const cx = n > 0 ? sumX / n : 0;
-                    const cy = n > 0 ? sumY / n : 0;
-                    const bbox = {
-                        x: minX,
-                        y: minY,
-                        width: maxX - minX,
-                        height: maxY - minY,
-                    };
-                    const parts: string[] = ['M', String(coords[0]), String(coords[1])];
-                    for (let i = 2; i < coords.length; i += 2) {
-                        parts.push('L', String(coords[i]), String(coords[i + 1]));
-                    }
-                    parts.push('Z');
+                if (coords.length < 6) return;
+
+                let sumX = 0, sumY = 0, n = 0;
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                for (let i = 0; i < coords.length; i += 2) {
+                    const x = coords[i];
+                    const y = coords[i + 1];
+                    sumX += x;
+                    sumY += y;
+                    n++;
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
+                const cx = n > 0 ? sumX / n : 0;
+                const cy = n > 0 ? sumY / n : 0;
+                const bbox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+                const parts: string[] = ['M', String(coords[0]), String(coords[1])];
+                for (let i = 2; i < coords.length; i += 2) {
+                    parts.push('L', String(coords[i]), String(coords[i + 1]));
+                }
+                parts.push('Z');
+                raw.push({
+                    id: `slot-${raw.length}`,
+                    d: parts.join(' '),
+                    transform: poly.getAttribute('transform') ?? undefined,
+                    pointCount: coords.length / 2,
+                    cx,
+                    cy,
+                    bbox,
+                    area: bbox.width * bbox.height,
+                });
+            });
+        } else {
+            // Fallback for path-based templates (e.g. 40.svg)
+            const paths = Array.from(doc.querySelectorAll('path')).filter((p) => {
+                const fill = (p.getAttribute('fill') || '').trim().toLowerCase();
+                return fill !== '' && fill !== 'none';
+            });
+            if (paths.length === 0) return null;
+
+            const ns = 'http://www.w3.org/2000/svg';
+            const measureSvg = document.createElementNS(ns, 'svg');
+            measureSvg.setAttribute('viewBox', `0 0 ${viewBox.width} ${viewBox.height}`);
+            measureSvg.style.position = 'absolute';
+            measureSvg.style.left = '-10000px';
+            measureSvg.style.top = '-10000px';
+            measureSvg.style.width = '0';
+            measureSvg.style.height = '0';
+            measureSvg.style.visibility = 'hidden';
+            document.body.appendChild(measureSvg);
+
+            try {
+                paths.forEach((p) => {
+                    const d = p.getAttribute('d') || '';
+                    if (!d) return;
+                    const transform = p.getAttribute('transform') ?? undefined;
+                    const clone = document.createElementNS(ns, 'path');
+                    clone.setAttribute('d', d);
+                    if (transform) clone.setAttribute('transform', transform);
+                    measureSvg.appendChild(clone);
+
+                    const bb = clone.getBBox();
+                    const ctm = clone.getCTM();
+                    const tbb = bboxFromTransformedRect(bb, ctm);
+
+                    measureSvg.removeChild(clone);
+                    const approxPointCount = Math.max(6, (d.match(/[ML]/gi)?.length ?? 0));
+                    const bbox = { x: tbb.x, y: tbb.y, width: tbb.width, height: tbb.height };
+                    if (!(Number.isFinite(bbox.width) && Number.isFinite(bbox.height) && bbox.width > 0 && bbox.height > 0)) return;
                     raw.push({
                         id: `slot-${raw.length}`,
-                        d: parts.join(' '),
-                        transform: poly.getAttribute('transform') ?? undefined,
-                        pointCount: coords.length / 2,
-                        cx,
-                        cy,
+                        d,
+                        transform,
+                        pointCount: approxPointCount,
+                        cx: tbb.cx,
+                        cy: tbb.cy,
                         bbox,
+                        area: bbox.width * bbox.height,
                     });
-                }
+                });
+            } finally {
+                document.body.removeChild(measureSvg);
             }
-        });
+        }
 
-        // Center = polygon with most points (the large central hexagon)
-        const maxPoints = Math.max(...raw.map((r) => r.pointCount));
-        const centerSlots = raw.filter((r) => r.pointCount === maxPoints && r.pointCount > 15);
-        const borderSlots = raw.filter((r) => !(r.pointCount === maxPoints && r.pointCount > 15));
+        if (raw.length === 0) return null;
 
-        // Sort border slots clockwise
+        const hasPolygonCenter = raw.some((r) => r.pointCount > 15);
+        let centerCandidates: typeof raw = [];
+        let borderCandidates: typeof raw = [];
+        if (hasPolygonCenter) {
+            const maxPoints = Math.max(...raw.map((r) => r.pointCount));
+            centerCandidates = raw.filter((r) => r.pointCount === maxPoints && r.pointCount > 15);
+            borderCandidates = raw.filter((r) => !(r.pointCount === maxPoints && r.pointCount > 15));
+        } else {
+            const center = raw.reduce((best, cur) => (cur.area > best.area ? cur : best), raw[0]);
+            centerCandidates = [center];
+            borderCandidates = raw.filter((r) => r !== center);
+        }
+
         const centerX = viewBox.width / 2;
         const centerY = viewBox.height / 2;
-        const sortedBorder = [...borderSlots].sort((a, b) => {
+        const sortedBorder = [...borderCandidates].sort((a, b) => {
             const angleA = Math.atan2(a.cy - centerY, a.cx - centerX);
             const angleB = Math.atan2(b.cy - centerY, b.cx - centerX);
             const normA = ((angleA + Math.PI / 2) + Math.PI * 2) % (Math.PI * 2);
@@ -136,7 +224,7 @@ async function parseHexagonSvg(memberCount: number): Promise<{ slots: Slot[]; vi
         });
 
         const slots: Slot[] = [
-            ...centerSlots.map((s) => ({ id: s.id, d: s.d, transform: s.transform, isCenter: true, bbox: s.bbox, cx: s.cx, cy: s.cy })),
+            ...centerCandidates.map((s) => ({ id: s.id, d: s.d, transform: s.transform, isCenter: true, bbox: s.bbox, cx: s.cx, cy: s.cy })),
             ...sortedBorder.map((s) => ({ id: s.id, d: s.d, transform: s.transform, isCenter: false, bbox: s.bbox, cx: s.cx, cy: s.cy })),
         ];
 
