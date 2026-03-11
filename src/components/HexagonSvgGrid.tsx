@@ -128,12 +128,23 @@ function extractSlotsFromSvg(doc: Document): { slots: Slot[]; viewBox: ViewBox }
     return { slots, viewBox };
   }
 
-  // Fallback for path-based templates (e.g. PDF-exported SVGs like 40.svg)
+  // Fallback for path-based templates (e.g. PDF-exported SVGs like 21.svg, 40.svg)
   const paths = Array.from(doc.querySelectorAll('path')).filter((p) => {
-    const fill = (p.getAttribute('fill') || '').trim().toLowerCase();
-    return fill !== '' && fill !== 'none';
+    // Skip obvious non-slot content such as text outlines (the "21" label, etc.)
+    if (p.getAttribute('aria-label')) return false;
+
+    const fillAttr = (p.getAttribute('fill') || '').trim().toLowerCase();
+    const styleAttr = (p.getAttribute('style') || '').trim().toLowerCase();
+
+    // Treat paths as "non-slots" only if they are explicitly set to fill: none
+    const isExplicitNone =
+      fillAttr === 'none' ||
+      styleAttr.includes('fill:none');
+
+    // All other paths (including ones with fill defined only in style) are treated as slots
+    return !isExplicitNone;
   });
-  if (paths.length === 0) return null;
+  if (paths.length === 0 || typeof document === 'undefined') return null;
 
   const ns = 'http://www.w3.org/2000/svg';
   const measureSvg = document.createElementNS(ns, 'svg');
@@ -147,31 +158,52 @@ function extractSlotsFromSvg(doc: Document): { slots: Slot[]; viewBox: ViewBox }
   document.body.appendChild(measureSvg);
 
   try {
-    const raw = paths.map((p, idx) => {
-      const d = p.getAttribute('d') || '';
-      const transform = p.getAttribute('transform') ?? undefined;
-      const clone = document.createElementNS(ns, 'path');
-      clone.setAttribute('d', d);
-      if (transform) clone.setAttribute('transform', transform);
-      measureSvg.appendChild(clone);
+    const raw = paths
+      .map((p, idx) => {
+        const d = p.getAttribute('d') || '';
+        if (!d) return null;
+        const transform = p.getAttribute('transform') ?? undefined;
+        const clone = document.createElementNS(ns, 'path');
+        clone.setAttribute('d', d);
+        if (transform) clone.setAttribute('transform', transform);
+        measureSvg.appendChild(clone);
 
-      const bb = clone.getBBox();
-      const ctm = clone.getCTM();
-      const tbb = bboxFromTransformedRect(bb, ctm);
+        let bb: DOMRect;
+        try {
+          bb = clone.getBBox();
+        } catch {
+          measureSvg.removeChild(clone);
+          return null;
+        }
+        const ctm = clone.getCTM();
+        const tbb = bboxFromTransformedRect(bb, ctm);
+        measureSvg.removeChild(clone);
 
-      measureSvg.removeChild(clone);
-      const approxPointCount = Math.max(6, (d.match(/[ML]/gi)?.length ?? 0));
-      return {
-        id: `slot-${idx}`,
-        d,
-        transform,
-        pointCount: approxPointCount,
-        cx: tbb.cx,
-        cy: tbb.cy,
-        bbox: { x: tbb.x, y: tbb.y, width: tbb.width, height: tbb.height },
-        area: tbb.width * tbb.height,
-      };
-    }).filter((r) => Number.isFinite(r.bbox.width) && Number.isFinite(r.bbox.height) && r.bbox.width > 0 && r.bbox.height > 0);
+        if (!Number.isFinite(tbb.width) || !Number.isFinite(tbb.height) || tbb.width <= 0 || tbb.height <= 0) {
+          return null;
+        }
+        const approxPointCount = Math.max(6, (d.match(/[ML]/gi)?.length ?? 0));
+        return {
+          id: `slot-${idx}`,
+          d,
+          transform,
+          pointCount: approxPointCount,
+          cx: tbb.cx,
+          cy: tbb.cy,
+          bbox: { x: tbb.x, y: tbb.y, width: tbb.width, height: tbb.height },
+          area: tbb.width * tbb.height,
+        };
+      })
+      .filter((r): r is {
+        id: string;
+        d: string;
+        transform?: string;
+        pointCount: number;
+        cx: number;
+        cy: number;
+        bbox: { x: number; y: number; width: number; height: number };
+        area: number;
+      } => !!r);
 
     if (raw.length === 0) return null;
 

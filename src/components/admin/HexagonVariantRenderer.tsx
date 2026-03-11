@@ -146,12 +146,21 @@ async function parseHexagonSvg(memberCount: number): Promise<{ slots: Slot[]; vi
                 });
             });
         } else {
-            // Fallback for path-based templates (e.g. 40.svg)
+            // Fallback for path-based templates (e.g. 21.svg, 40.svg)
             const paths = Array.from(doc.querySelectorAll('path')).filter((p) => {
-                const fill = (p.getAttribute('fill') || '').trim().toLowerCase();
-                return fill !== '' && fill !== 'none';
+                // Skip obvious non-slot content such as text outlines (the "21" label, etc.)
+                if (p.getAttribute('aria-label')) return false;
+
+                const fillAttr = (p.getAttribute('fill') || '').trim().toLowerCase();
+                const styleAttr = (p.getAttribute('style') || '').trim().toLowerCase();
+
+                const isExplicitNone =
+                    fillAttr === 'none' ||
+                    styleAttr.includes('fill:none');
+
+                return !isExplicitNone;
             });
-            if (paths.length === 0) return null;
+            if (paths.length === 0 || typeof document === 'undefined') return null;
 
             const ns = 'http://www.w3.org/2000/svg';
             const measureSvg = document.createElementNS(ns, 'svg');
@@ -174,14 +183,20 @@ async function parseHexagonSvg(memberCount: number): Promise<{ slots: Slot[]; vi
                     if (transform) clone.setAttribute('transform', transform);
                     measureSvg.appendChild(clone);
 
-                    const bb = clone.getBBox();
+                    let bb: DOMRect;
+                    try {
+                        bb = clone.getBBox();
+                    } catch {
+                        measureSvg.removeChild(clone);
+                        return;
+                    }
                     const ctm = clone.getCTM();
                     const tbb = bboxFromTransformedRect(bb, ctm);
-
                     measureSvg.removeChild(clone);
-                    const approxPointCount = Math.max(6, (d.match(/[ML]/gi)?.length ?? 0));
+
                     const bbox = { x: tbb.x, y: tbb.y, width: tbb.width, height: tbb.height };
                     if (!(Number.isFinite(bbox.width) && Number.isFinite(bbox.height) && bbox.width > 0 && bbox.height > 0)) return;
+                    const approxPointCount = Math.max(6, (d.match(/[ML]/gi)?.length ?? 0));
                     raw.push({
                         id: `slot-${raw.length}`,
                         d,
