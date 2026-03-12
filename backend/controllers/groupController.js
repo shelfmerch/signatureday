@@ -606,29 +606,24 @@ export const deleteGroup = async (req, res) => {
       return res.status(404).json({ message: 'Group not found' });
     }
 
-    // Check if user is the leader of this group
-    // 1. Check if they are the 'active' leader (User.groupId matches)
-    const isActiveLeader = req.user.isLeader && req.user.groupId == group._id.toString();
+    // Authorization: only the group owner (createdByUserId) or an admin can delete.
+    const isOwner =
+      group.createdByUserId &&
+      group.createdByUserId.toString() === req.user._id.toString();
+    const isAdmin = !!req.user.isAdmin;
 
-    // 2. Legacy member-based leader detection is no longer used
-    const isMemberLeader = false;
-
-    // 3. Check explicit ownership if field exists
-    const isOwner = group.createdByUserId && group.createdByUserId.toString() === req.user._id.toString();
-
-    // 4. Legacy fallback based on first member is no longer used
-    const isFirstMember = false;
-
-    console.log(`[Auth Debug] active=${isActiveLeader}, memberLeader=${isMemberLeader}, owner=${isOwner}, first=${isFirstMember}`);
-
-    if (!isActiveLeader && !isMemberLeader && !isOwner && !isFirstMember) {
-      console.warn(`Delete blocked: User ${req.user._id} is not authorized for group ${group._id}`);
+    if (!isOwner && !isAdmin) {
+      console.warn(
+        `Delete blocked: user ${req.user._id} is not owner/admin for group ${group._id}`
+      );
       return res.status(403).json({ message: 'Not authorized to delete this group' });
     }
 
-    // Remove group association from all users in this group
-    await User.updateMany({ groupId: group._id }, { groupId: null, isLeader: false });
-    console.log(`Detached users from group ${group._id}`);
+    // Remove group association from all users in this group.
+    // Do NOT flip isLeader here; that flag is used for route-level auth
+    // (a user can still be a leader for other groups).
+    await User.updateMany({ groupId: group._id }, { groupId: null });
+    console.log(`Detached users from group ${group._id} (groupId cleared)`);
 
     // Delete the group using findByIdAndDelete to ensure it is removed and return the doc
     const deletedGroup = await Group.findByIdAndDelete(group._id);

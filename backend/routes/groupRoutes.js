@@ -41,6 +41,7 @@ router.post('/:id/join-paid', protect, joinGroupPaid);
 // Make template update accessible without auth for better performance
 router.put('/:id/template', updateGroupTemplate);
 router.put('/:id', protect, isLeader, updateGroup);
-router.delete('/:id', protect, isLeader, deleteGroup);
+// Delete group: allow the authenticated owner (createdByUserId) or admin to delete.
+router.delete('/:id', protect, deleteGroup);
 
 export default router;

@@ -439,29 +439,20 @@ export const CollageProvider: React.FC<{ children: ReactNode }> = ({ children })
     setError(null);
 
     try {
-      // Try API first
-      try {
-        await groupApi.deleteGroup(groupId);
+      // Call API; if this fails, we do NOT modify local cache so UI stays consistent with backend
+      await groupApi.deleteGroup(groupId);
 
-        // Update local cache
-        setGroups(prev => {
-          const newGroups = { ...prev };
-          delete newGroups[groupId];
-          return newGroups;
-        });
-      } catch (error) {
-        console.warn('API delete group failed, using localStorage fallback:', error);
-
-        // Fallback to localStorage
-        setGroups(prev => {
-          const newGroups = { ...prev };
-          delete newGroups[groupId];
-          return newGroups;
-        });
-      }
+      // Update local cache only after successful API delete
+      setGroups(prev => {
+        const newGroups = { ...prev };
+        delete newGroups[groupId];
+        return newGroups;
+      });
     } catch (error) {
       console.error('Delete group failed:', error);
       setError('Failed to delete group');
+      // Re-throw so callers can show proper error state/toast
+      throw error;
     } finally {
       setIsLoading(false);
     }
