@@ -23,29 +23,44 @@ export const createGroup = async (req, res) => {
     const { name, yearOfPassing, totalMembers, gridTemplate, layoutMode } = req.body;
     console.log('[DEBUG] createGroup req.body:', JSON.stringify(req.body, null, 2));
 
-    // Resolve referral code from cookie or body
-    const referralCode = getReferralCode(req);
+    // Resolve referral based on (in order of priority):
+    // 1) User profile (user.referredBy) – sticky across sessions
+    // 2) Referral cookie/body (current session)
+    const currentUser = req.user ? await User.findById(req.user._id).lean() : null;
+    const userReferral = currentUser?.referredBy ? String(currentUser.referredBy).trim().toUpperCase() : null;
+    const cookieReferral = getReferralCode(req);
+
+    const effectiveReferralCode = userReferral || cookieReferral || null;
+
     let ambassadorId = null;
     let resolvedReferralCode = null;
     let referredAt = null;
 
-    if (referralCode) {
-      const ambassador = await resolveReferralCode(referralCode);
+    if (effectiveReferralCode) {
+      const ambassador = await resolveReferralCode(effectiveReferralCode);
       if (ambassador) {
         ambassadorId = ambassador._id;
-        resolvedReferralCode = referralCode;
+        resolvedReferralCode = ambassador.referralCode; // normalized from DB
         referredAt = new Date();
-        console.log(`[Group Creation] Group created with ambassador referral: ${referralCode}, ambassadorId: ${ambassadorId}`);
+        console.log(`[Group Creation] Group created with ambassador referral: ${resolvedReferralCode}, ambassadorId: ${ambassadorId}`);
+
+        // Persist referral on user profile so all future groups use referral pricing
+        if (currentUser && !currentUser.referredBy) {
+          await User.findByIdAndUpdate(currentUser._id, { referredBy: resolvedReferralCode });
+          console.log(`[Group Creation] Persisted referredBy=${resolvedReferralCode} on user ${currentUser._id}`);
+        }
       } else {
-        console.log(`[Group Creation] Referral code found but invalid: ${referralCode}`);
+        console.log(`[Group Creation] Referral code found but invalid: ${effectiveReferralCode}`);
       }
     } else {
-      console.log(`[Group Creation] No referral code found - group will be created without ambassador (price: ₹189)`);
+      console.log(`[Group Creation] No referral code found on user or cookie - group will be created without ambassador (price: ₹189)`);
     }
 
-    // Create new group
-    // Explicitly set ambassadorId to null if not provided (not undefined)
-    const pricePerMember = ambassadorId ? 149 : 189;
+    // Apply referral-based pricing:
+    // - If user has referredBy OR we resolved an ambassador from referral → ₹149
+    // - Otherwise → ₹189
+    const hasReferral = !!(currentUser?.referredBy || ambassadorId);
+    const pricePerMember = hasReferral ? 149 : 189;
 
     const group = await Group.create({
       name,
@@ -55,7 +70,7 @@ export const createGroup = async (req, res) => {
       layoutMode: layoutMode || 'voting',
       members: [],
       ambassadorId: ambassadorId || null, // Explicitly set to null if no ambassador
-      referralCode: resolvedReferralCode || null, // Explicitly set to null if no referral
+      referralCode: resolvedReferralCode || currentUser?.referredBy || null, // Persist referral used for this group
       referredAt: referredAt || null, // Explicitly set to null if no referral
       createdByUserId: req.user?._id || null,
       pricePerMember
@@ -71,7 +86,7 @@ export const createGroup = async (req, res) => {
 
       // Clear referral cookie after group creation to prevent reuse
       // This ensures the cookie is only used once per group creation
-      if (referralCode) {
+      if (cookieReferral) {
         clearReferralCookie(res);
       }
 

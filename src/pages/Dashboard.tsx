@@ -225,7 +225,7 @@ const Dashboard = () => {
     const fetchGroup = async (bg = false) => {
       if (!groupId) {
         setLoadingGroup(false);
-        return;
+        return undefined;
       }
 
       try {
@@ -235,44 +235,65 @@ const Dashboard = () => {
 
         if (fetchedGroup) {
           setGroup(fetchedGroup);
+          return fetchedGroup;
         } else {
           console.log('No group found for groupId:', groupId);
           if (!bg) toast.error('Group not found');
+          return undefined;
         }
       } catch (error) {
         console.error('Error fetching group:', error);
         if (!bg) toast.error('Failed to load group');
+        return undefined;
       } finally {
         if (!bg) setLoadingGroup(false);
       }
     };
 
-    fetchGroup();
+    let intervalId: number | undefined;
 
-    // Set up polling at a more frequent interval (every 5 seconds) for real-time updates
-    let pollCount = 0;
-    const intervalId = setInterval(() => {
-      if (groupId) {
-        // Force refresh every 4th poll (every 20 seconds) to ensure fresh data
+    const init = async () => {
+      const initialGroup = await fetchGroup();
+
+      // If group is missing (404) or failed to load, do not start polling;
+      // the user can navigate away or see the empty state, but we avoid
+      // hammering the API with repeated requests for a deleted group.
+      if (!initialGroup) {
+        return;
+      }
+
+      // Set up polling every 5 seconds for real-time updates
+      let pollCount = 0;
+      intervalId = window.setInterval(() => {
+        if (!groupId) return;
+
         const shouldForceRefresh = pollCount % 4 === 0;
         if (shouldForceRefresh) {
           console.log('Polling with force refresh');
-          getGroup(groupId, true).then(fetchedGroup => {
-            if (fetchedGroup) {
-              setGroup(fetchedGroup);
-            }
-          }).catch(error => {
-            console.error('Error in polling force refresh:', error);
-          });
+          getGroup(groupId, true)
+            .then(fetchedGroup => {
+              if (fetchedGroup) {
+                setGroup(fetchedGroup);
+              }
+            })
+            .catch(error => {
+              console.error('Error in polling force refresh:', error);
+            });
         } else {
           fetchGroup(true);
         }
         pollCount++;
-      }
-    }, 5000);
+      }, 5000);
+    };
 
-    // Clean up interval on unmount
-    return () => clearInterval(intervalId);
+    init();
+
+    // Clean up interval on unmount or when groupId changes
+    return () => {
+      if (intervalId !== undefined) {
+        clearInterval(intervalId);
+      }
+    };
   }, [groupId, getGroup, navigate, user?.groupId]);
 
   // Open the share modal only once when user first comes from GridBoard (after creating group)
@@ -457,7 +478,7 @@ const Dashboard = () => {
       console.log('Group deleted successfully via API');
 
       // 2. Fetch remaining user groups
-      let nextPath = '/create-group';
+      let nextPath: string | null = null;
 
       if (user?.id) {
         try {
@@ -470,7 +491,11 @@ const Dashboard = () => {
           setUserGroups(validGroups);
 
           if (validGroups.length > 0) {
+            // More groups remain – go to the next group's dashboard
             nextPath = `/dashboard/${validGroups[0].id}`;
+          } else {
+            // This was the only group – send leader to Editor landing
+            nextPath = '/editor';
           }
         } catch (err) {
           console.warn('Failed to fetch remaining groups', err);
@@ -485,8 +510,7 @@ const Dashboard = () => {
       if (user?.groupId === groupId) {
         try {
           await updateUser({
-            groupId: null as any,
-            isLeader: false
+            groupId: null as any
           });
         } catch (e) {
           console.warn('Failed to update user context:', e);
@@ -503,18 +527,12 @@ const Dashboard = () => {
         localStorage.removeItem('lastActiveGroupId');
       }
 
-      // 4. Update UI to "No Group" state without redirecting to /create-group
-      // If we have another group, we can redirect there.
-      // If no other groups, we stay on this page and let the UI handle the "missing group" state.
-
-      if (nextPath !== '/create-group') {
-        console.log('Switching to next group:', nextPath);
+      // 4. Navigate based on remaining groups:
+      // - If we have another group, go to its dashboard.
+      // - If this was the only group, go to the Editor landing page.
+      if (nextPath) {
+        console.log('Navigating after delete to:', nextPath);
         navigate(nextPath, { replace: true });
-      } else {
-        // Stay on current page but force reload to clear cache/state
-        // This will cause the component to re-render, find no group, and display the Empty State we added.
-        console.log('No other groups found. Reloading to show empty state.');
-        window.location.reload();
       }
 
     } catch (error) {

@@ -136,6 +136,16 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+    /**
+     * Referral code that originally brought this user (e.g. SD-CA-12345).
+     * Used to ensure referral-based pricing (₹149) for all future groups
+     * they create, even after the referral cookie expires.
+     */
+    referredBy: {
+      type: String,
+      trim: true,
+      default: null,
+    },
     guidesSeen: {
       dashboard: { type: Boolean, default: false },
       editor: { type: Boolean, default: false }

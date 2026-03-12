@@ -137,11 +137,11 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
         // Keep flag (no longer used on home), but send user directly to create-group/GridBoard.
         sessionStorage.setItem('showWelcomeTour', 'true');
         navigate('/create-group');
-      } else {
-        toast.error('Registration failed');
       }
     } catch (error: any) {
-      toast.error(error.message || 'Registration failed. Please try again.');
+      // Handle specific backend error messages (e.g. "User already exists")
+      const message = error?.message || 'Registration failed. Please try again.';
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
