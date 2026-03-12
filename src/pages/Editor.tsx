@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import UserWalkthrough, { Step } from '@/components/UserWalkthrough';
 import { getAvailableTemplates, getInitialTemplateIndex } from '@/lib/templateUtils';
+import { getEffectivePricePerMember } from '@/lib/pricing';
 
 // Background doodle component
 const BackgroundDoodle = () => (
@@ -274,7 +275,7 @@ const Editor = () => {
       toast.info('Creating order...');
       console.log('Creating Razorpay order...');
 
-      const itemsAmount = unpaidMembers.length * (group.pricePerMember || 189);
+      const itemsAmount = unpaidMembers.length * getEffectivePricePerMember(group);
       const totalAmount = itemsAmount;
       const amountPaise = Math.round(totalAmount * 100);
 
@@ -669,7 +670,7 @@ const Editor = () => {
 
   // Payment calculations
   const unpaidMembers = group.members.filter((m: Member) => !m.paidDeposit);
-  const totalUnpaidAmount = unpaidMembers.length * (group.pricePerMember || 189);
+  const totalUnpaidAmount = unpaidMembers.length * getEffectivePricePerMember(group);
   const isLeader = user?.id === group.leaderId;
 
   // Determine which member count to use based on toggle
@@ -1123,14 +1124,14 @@ const Editor = () => {
 
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Pending Member Deposits:</span>
-                    <span className="font-semibold">₹{unpaidMembers.length * (group.pricePerMember || 189)}</span>
+                    <span className="font-semibold">₹{unpaidMembers.length * getEffectivePricePerMember(group)}</span>
                   </div>
 
                   <div className="border-t border-purple-200 my-4 pt-4">
                     <div className="flex justify-between items-center">
                       <span className="text-lg font-bold text-gray-900">Grand Total:</span>
                       <span className="text-2xl font-black text-purple-600">
-                        ₹{Math.round((unpaidMembers.length * (group.pricePerMember || 189)) * 100) / 100}
+                        ₹{Math.round((unpaidMembers.length * getEffectivePricePerMember(group)) * 100) / 100}
                       </span>
                     </div>
                   </div>

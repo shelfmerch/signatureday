@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { userApi } from '@/lib/api';
 import UserWalkthrough, { Step } from '@/components/UserWalkthrough';
+import { getEffectivePricePerMember } from '@/lib/pricing';
 
 // Background doodle component
 const BackgroundDoodle = () => (
@@ -622,7 +623,7 @@ const Dashboard = () => {
   const shareLink = `${window.location.origin}/join/${group.id}`;
 
   const unpaidMembers = filteredMembers.filter(m => !m.paidDeposit);
-  const totalUnpaidAmount = unpaidMembers.length * (group.pricePerMember || 189);
+  const totalUnpaidAmount = unpaidMembers.length * getEffectivePricePerMember(group);
 
 
 

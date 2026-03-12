@@ -42,11 +42,13 @@ export interface Group {
   members: Member[];
   votes: Record<GridTemplate, number>;
   pricePerMember?: number;
+  referralCode?: string | null;
+  referredAt?: Date | string | null;
 }
 
 interface CollageContextType {
   groups: Record<string, Group>;
-  createGroup: (groupData: Omit<Group, 'id' | 'shareLink' | 'createdAt' | 'members' | 'votes'> & { layoutMode?: LayoutMode; phone?: string; phoneVerified?: boolean }) => Promise<string>;
+  createGroup: (groupData: Omit<Group, 'id' | 'shareLink' | 'createdAt' | 'members' | 'votes'> & { layoutMode?: LayoutMode; phone?: string; phoneVerified?: boolean; referralCode?: string }) => Promise<string>;
   joinGroup: (groupId: string, memberData: Omit<Member, 'id' | 'joinedAt'> & { phone?: string; phoneVerified?: boolean }) => Promise<boolean>;
   getGroup: (groupId: string, forceRefresh?: boolean) => Promise<Group | undefined>;
   updateGroupTemplate: (groupId: string) => Promise<void>;
@@ -187,7 +189,7 @@ export const CollageProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   }, [groups]);
 
-  const createGroup = useCallback(async (groupData: Omit<Group, 'id' | 'shareLink' | 'createdAt' | 'members' | 'votes'> & { phone?: string; phoneVerified?: boolean }): Promise<string> => {
+  const createGroup = useCallback(async (groupData: Omit<Group, 'id' | 'shareLink' | 'createdAt' | 'members' | 'votes'> & { phone?: string; phoneVerified?: boolean; referralCode?: string }): Promise<string> => {
     setIsLoading(true);
     setError(null);
 

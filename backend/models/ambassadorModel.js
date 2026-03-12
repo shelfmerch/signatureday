@@ -125,7 +125,10 @@ ambassadorSchema.pre('validate', async function (next) {
 
 // Virtual for referral link
 ambassadorSchema.virtual('referralLink').get(function () {
-  const origin = process.env.FRONTEND_ORIGIN || 'http://localhost:8080';
+  const origin =
+    process.env.FRONTEND_ORIGIN ||
+    process.env.PUBLIC_APP_ORIGIN ||
+    (process.env.NODE_ENV === 'production' ? 'https://signaturedaytshirt.com' : 'http://localhost:8080');
   return `${origin}/ref/${this.referralCode}`;
 });
 

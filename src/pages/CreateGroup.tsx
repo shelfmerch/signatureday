@@ -145,7 +145,8 @@ const CreateGroup = () => {
         name: formData.name,
         yearOfPassing: formData.yearOfPassing,
         totalMembers: membersNum,
-        gridTemplate: formData.gridTemplate
+        gridTemplate: formData.gridTemplate,
+        ...(referralCode ? { referralCode } : {})
       });
 
       if (!groupId) {

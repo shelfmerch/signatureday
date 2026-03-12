@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useCollage } from '@/context/CollageContext';
 import { paymentsApi } from '@/lib/api';
+import { getEffectivePricePerMember } from '@/lib/pricing';
 
 const MemberPayment = () => {
     const { groupId, memberRollNumber } = useParams<{ groupId: string; memberRollNumber: string }>();
@@ -65,7 +66,7 @@ const MemberPayment = () => {
             const scriptLoaded = await loadRazorpayScript();
             if (!scriptLoaded) throw new Error('Failed to load Razorpay SDK');
 
-            const amount = group.pricePerMember || 189;
+            const amount = getEffectivePricePerMember(group);
             const amountPaise = amount * 100;
 
             const order = await paymentsApi.createOrder(
@@ -176,7 +177,7 @@ const MemberPayment = () => {
                         </div>
                         <div className="pt-3 border-t border-gray-200 flex justify-between items-center">
                             <span className="text-base font-bold text-gray-900">Amount to Pay</span>
-                            <span className="text-2xl font-extrabold text-purple-600">₹{group.pricePerMember || 189}</span>
+                            <span className="text-2xl font-extrabold text-purple-600">₹{getEffectivePricePerMember(group)}</span>
                         </div>
                     </div>
 
@@ -192,7 +193,7 @@ const MemberPayment = () => {
                                     Processing...
                                 </>
                             ) : (
-                                `Pay ₹${group.pricePerMember || 189} Now`
+                                `Pay ₹${getEffectivePricePerMember(group)} Now`
                             )}
                         </Button>
                     ) : (

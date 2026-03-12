@@ -46,12 +46,17 @@ export default function ReferralRedirect() {
           }
         }
 
-        // 3) Set httpOnly cookie for attribution
+        // 3) Set httpOnly cookie for attribution (credentials so cookie is stored)
         await fetch('/api/referrals/track', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ referralCode })
         }).catch(() => undefined);
+
+        // 4) Store referral in localStorage so create-group request can send it in body (reliable fallback)
+        const { AmbassadorStorageService } = await import('@/lib/ambassadorStorage');
+        AmbassadorStorageService.setActiveReferral(referralCode.trim().toUpperCase());
 
         const name = data?.name || data?.ambassadorName || 'your ambassador';
         toast.success(`Welcome! You're creating a group via ${name}'s referral`);

@@ -262,6 +262,9 @@ export const getGroupById = async (req, res) => {
       // Do not truncate photos; return full data for proper rendering/face detection
       const compressedMembers = group.members;
 
+      // Effective price: use stored pricePerMember, or derive from ambassador (149 vs 189)
+      const pricePerMember = group.pricePerMember ?? (group.ambassadorId ? 149 : 189);
+
       res.json({
         id: group._id,
         name: group.name,
@@ -275,6 +278,7 @@ export const getGroupById = async (req, res) => {
         ambassadorId: (group.ambassadorId && group.ambassadorId.toString()) || null, // Include ambassadorId for pricing logic (convert to string or null)
         referralCode: group.referralCode || null,
         referredAt: group.referredAt || null,
+        pricePerMember,
         members: group.members.map(member => ({
           ...member,
           id: member._id || member.id // Include id field for frontend compatibility

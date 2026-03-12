@@ -22,6 +22,14 @@ const getRazorpayInstance = () => {
   return new Razorpay({ key_id: keyId, key_secret: keySecret });
 };
 
+/** Effective price per member: use stored value or derive from ambassador (₹149 vs ₹189). */
+function getEffectivePricePerMember(group) {
+  const stored = group.pricePerMember;
+  if (stored != null && stored > 0) return stored;
+  const hasAmbassador = !!(group.ambassadorId != null && group.ambassadorId !== '' && String(group.ambassadorId).trim() !== '');
+  return hasAmbassador ? 149 : 189;
+}
+
 /**
  * Helper to send payment confirmation email with invoice attachment
  */
@@ -798,7 +806,7 @@ export const verifyBulkPayment = async (req, res) => {
         m.depositOrderId = razorpay_order_id;
         m.depositPaymentId = razorpay_payment_id;
         m.depositPaidAt = new Date();
-        m.depositAmountPaise = (group.pricePerMember || 189) * 100;
+        m.depositAmountPaise = getEffectivePricePerMember(group) * 100;
         updateCount++;
       }
     });
@@ -861,7 +869,7 @@ export const verifyBulkPayment = async (req, res) => {
 
 
         // Send confirmation email
-        const totalAmountPaise = updateCount * (group.pricePerMember || 189) * 100;
+        const totalAmountPaise = updateCount * getEffectivePricePerMember(group) * 100;
         sendPaymentConfirmationEmail({
           email: shipping.email || (req.user && req.user.email),
           name: shipping.name || (req.user && req.user.name),
@@ -921,7 +929,7 @@ export const sendMemberPaymentLink = async (req, res) => {
           <p>You have joined the group <strong>${group.name}</strong>. Please complete your payment to finalize your registration.</p>
           <div style="margin: 30px 0;">
             <a href="${paymentUrl}" style="background: #6d28d9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-              Pay ₹${group.pricePerMember || 189} Now
+              Pay ₹${getEffectivePricePerMember(group)} Now
             </a>
           </div>
           <p>If the button doesn't work, copy and paste this link: ${paymentUrl}</p>

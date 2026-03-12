@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { getAmbassador, getAmbassadorStats, getAmbassadorSummary, getAmbassadorRewards, updateAmbassadorPayoutMethod, getAmbassadorGroups, type AmbassadorResponse, type AmbassadorStatsResponse, type AmbassadorSummaryResponse, type AmbassadorRewardItem, type AmbassadorGroupItem } from '@/lib/ambassadorApi';
 import { Copy, ExternalLink, Eye, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import { AmbassadorStorageService } from '@/lib/ambassadorStorage';
 
 export default function AmbassadorDashboard() {
   const { ambassadorId } = useParams<{ ambassadorId: string }>();
@@ -39,6 +40,10 @@ export default function AmbassadorDashboard() {
         setAmbassador(amb);
         // Store ambassadorId in localStorage for quick access
         localStorage.setItem('ambassadorId', ambassadorId);
+        // Ensure referral attribution is set even if user comes via /ambassador/:id directly
+        if (amb?.referralCode) {
+          AmbassadorStorageService.setActiveReferral(String(amb.referralCode).trim().toUpperCase());
+        }
         const s = await getAmbassadorStats(ambassadorId);
         setStats(s);
         const summaryData = await getAmbassadorSummary(ambassadorId);
@@ -59,8 +64,7 @@ export default function AmbassadorDashboard() {
 
   const copyReferralLink = () => {
     if (!ambassador) return;
-    const fallbackLink = `${window.location.origin}/ref/${ambassador.referralCode}`;
-    const linkToCopy = ambassador.referralLink || fallbackLink;
+    const linkToCopy = `${window.location.origin}/ref/${ambassador.referralCode}`;
     navigator.clipboard.writeText(linkToCopy);
     toast.success('Referral link copied!');
   };
@@ -129,8 +133,9 @@ export default function AmbassadorDashboard() {
 
   if (!ambassador || !stats) return null;
 
-  const referralUrl =
-    ambassador.referralLink || `${window.location.origin}/ref/${ambassador.referralCode}`;
+  // Always build referral URL from the current site origin.
+  // Backend may return a default like localhost if FRONTEND_ORIGIN isn't set correctly.
+  const referralUrl = `${window.location.origin}/ref/${ambassador.referralCode}`;
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
