@@ -354,7 +354,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error) {
       // Do NOT fallback to local registration; require backend registration
       console.error('Registration failed:', error);
-      return false;
+
+      // Surface specific API errors (e.g. 400 \"User already exists\") so UI can show the right message
+      if (error instanceof ApiError) {
+        throw error;
+      }
+
+      throw error instanceof Error ? error : new Error('Registration failed');
     } finally {
       setIsLoading(false);
     }

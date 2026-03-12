@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { LocalStorageService } from '@/lib/localStorage';
-import { groupApi } from '@/lib/api';
+import { groupApi, ApiError } from '@/lib/api';
 import { useAuth } from './AuthContext';
 
 export type GridTemplate = 'square' | 'hexagonal' | 'any';
@@ -439,10 +439,19 @@ export const CollageProvider: React.FC<{ children: ReactNode }> = ({ children })
     setError(null);
 
     try {
-      // Call API; if this fails, we do NOT modify local cache so UI stays consistent with backend
-      await groupApi.deleteGroup(groupId);
+      try {
+        // Normal path: delete succeeds
+        await groupApi.deleteGroup(groupId);
+      } catch (error) {
+        // If group is already gone (404), treat as success from the UI's perspective.
+        if (error instanceof ApiError && error.status === 404) {
+          console.warn('[CollageContext] deleteGroup: group already deleted on server, treating as success');
+        } else {
+          throw error;
+        }
+      }
 
-      // Update local cache only after successful API delete
+      // Update local cache after successful/benign delete
       setGroups(prev => {
         const newGroups = { ...prev };
         delete newGroups[groupId];
