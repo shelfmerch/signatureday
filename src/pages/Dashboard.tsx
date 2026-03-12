@@ -462,16 +462,22 @@ const Dashboard = () => {
       if (user?.id) {
         try {
           const res = await userApi.getUserGroups(user.id);
-          const remainingGroups = res.items || [];
-          // Filter out the deleted group
-          const validGroups = remainingGroups.filter((g: any) => g.id !== groupId);
+          const remainingGroups = (res.items || []) as Array<{ id: string; name: string; yearOfPassing?: string }>;
+          // Filter out the deleted group and update local state for switcher/dropdowns
+          const validGroups = remainingGroups.filter((g) => String(g.id) !== String(groupId));
           console.log('Remaining groups:', validGroups);
+
+          setUserGroups(validGroups);
 
           if (validGroups.length > 0) {
             nextPath = `/dashboard/${validGroups[0].id}`;
           }
         } catch (err) {
           console.warn('Failed to fetch remaining groups', err);
+          // Fallback: at least ensure local userGroups state drops the deleted group
+          setUserGroups((prev) =>
+            prev ? prev.filter((g) => String(g.id) !== String(groupId)) : prev
+          );
         }
       }
 
@@ -488,6 +494,8 @@ const Dashboard = () => {
       }
 
       toast.success('Group deleted successfully');
+      // Close the confirm dialog once deletion succeeds
+      setIsDeleteModalOpen(false);
 
       // Remove from localStorage if it matches
       const lastActive = localStorage.getItem('lastActiveGroupId');
@@ -512,6 +520,8 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error deleting group:', error);
       toast.error('Failed to delete group. Please try again.');
+    } finally {
+      // Always clear deleting state so the button doesn't get stuck
       setIsDeleting(false);
     }
   };
