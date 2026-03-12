@@ -158,8 +158,19 @@ function extractSlotsFromSvg(doc: Document): { slots: Slot[]; viewBox: ViewBox }
   document.body.appendChild(measureSvg);
 
   try {
+    type RawPathSlot = {
+      id: string;
+      d: string;
+      transform?: string;
+      pointCount: number;
+      cx: number;
+      cy: number;
+      bbox: { x: number; y: number; width: number; height: number };
+      area: number;
+    };
+
     const raw = paths
-      .map((p, idx) => {
+      .map<RawPathSlot | null>((p, idx) => {
         const d = p.getAttribute('d') || '';
         if (!d) return null;
         const transform = p.getAttribute('transform') ?? undefined;
@@ -183,7 +194,7 @@ function extractSlotsFromSvg(doc: Document): { slots: Slot[]; viewBox: ViewBox }
           return null;
         }
         const approxPointCount = Math.max(6, (d.match(/[ML]/gi)?.length ?? 0));
-        return {
+        const result: RawPathSlot = {
           id: `slot-${idx}`,
           d,
           transform,
@@ -193,17 +204,9 @@ function extractSlotsFromSvg(doc: Document): { slots: Slot[]; viewBox: ViewBox }
           bbox: { x: tbb.x, y: tbb.y, width: tbb.width, height: tbb.height },
           area: tbb.width * tbb.height,
         };
+        return result;
       })
-      .filter((r): r is {
-        id: string;
-        d: string;
-        transform?: string;
-        pointCount: number;
-        cx: number;
-        cy: number;
-        bbox: { x: number; y: number; width: number; height: number };
-        area: number;
-      } => !!r);
+      .filter((r): r is RawPathSlot => !!r);
 
     if (raw.length === 0) return null;
 
@@ -263,17 +266,21 @@ export const HexagonSvgGrid: React.FC<HexagonSvgGridProps> = ({
   size = 'large',
   emptyCenter,
 }) => {
-  const sizeStyles = {
-    small: { maxH: 'min(65vh,450px)', minH: 180 },
-    medium: { maxH: 'min(75vh,550px)', minH: 220 },
-    large: { maxH: '100%', minH: 240 },
-    xlarge: { maxH: '100%', minH: 280 },
-  }[size];
-
+  const [isDesktop, setIsDesktop] = useState(
+    typeof window !== 'undefined' && window.innerWidth >= 1024
+  );
   const [slots, setSlots] = useState<Slot[]>([]);
   const [viewBox, setViewBox] = useState({ width: 595.3, height: 936 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener('change', handler);
+    setIsDesktop(mq.matches);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   useEffect(() => {
     const key = resolveSvgPath(svgPath);
@@ -282,14 +289,12 @@ export const HexagonSvgGrid: React.FC<HexagonSvgGridProps> = ({
       setLoading(false);
       return;
     }
-
     const loader = hexagonSvgModules[key as keyof typeof hexagonSvgModules];
     if (typeof loader !== 'function') {
       setError('Failed to load');
       setLoading(false);
       return;
     }
-
     (loader as () => Promise<string>)()
       .then((text) => {
         const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
@@ -311,47 +316,35 @@ export const HexagonSvgGrid: React.FC<HexagonSvgGridProps> = ({
 
   const { width, height } = viewBox;
 
-  // Match square grid logic: 1st member is in center AND in first border slot.
-  // Square: center = member 0, border slots = members 0..15 (so member 0 in center + first small box).
-  // Hex: slot 0 (center) = member 0 (or preview), slots 1..16 (border) = members 0..15.
   const getPhotoForSlot = (slotIndex: number): string => {
     if (slotIndex === 0) {
       if (previewMember?.photo) return previewMember.photo;
       if (!centerEmptyDefault && existingMembers[0]?.photo) return existingMembers[0].photo;
       return PLACEHOLDER_FEMALE;
     }
-    // Border slots 1..16 = members 0..15 (same as square: first member in center and in first border slot)
     const memberIndex = slotIndex - 1;
     const memberPhoto = existingMembers[memberIndex]?.photo;
     if (memberPhoto) return memberPhoto;
     return slotIndex % 2 === 1 ? PLACEHOLDER_MALE : PLACEHOLDER_FEMALE;
   };
 
-  // Fit container (GridBoard/Editor/JoinGroup): match square grid containment approach.
-  // Square grid uses viewport-based sizing with --cell/--gap; hex uses flex constraints to fit parent.
-  // Key: wrapper and card must not exceed the parent CardContent bounds. Use viewport-based sizing.
-  const wrapperClass = 'w-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-2 md:p-6';
-  const cardClass = 'flex flex-col bg-white rounded-xl shadow-2xl p-1 md:p-3 max-w-full overflow-hidden';
-  const cardStyle: React.CSSProperties = {
-    minHeight: sizeStyles.minH,
-  };
+  const cellFormula = isDesktop
+    ? 'min(calc((35vw - 16px - 14px) / 8), calc((100vh - 16px - 14px) / 8))'
+    : 'min(calc((100vw - 16px - 14px) / 8), calc((100vh - 16px - 14px) / 8))';
 
-  // Calculate viewport-based heights similar to square grid's approach
-  const svgContainerStyle: React.CSSProperties = {
-    width: '100%',
-    height: 'min(60vh, 550px)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+  const scale = 0.7; // slightly smaller than square templates
+
+  const containerStyle: React.CSSProperties = {
+    width: `calc((${cellFormula} * 8 + 14px) * ${scale})`,
+    aspectRatio: `${width} / ${height}`,
+    margin: '0 auto',
   };
 
   if (loading) {
     return (
-      <div className={wrapperClass}>
-        <div className={cardClass} style={cardStyle}>
-          <div className="flex-1 min-h-0 flex items-center justify-center" style={{ minHeight: 200 }}>
-            <p className="text-sm text-muted-foreground">Loading hexagon template...</p>
-          </div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-2 md:p-6">
+        <div className="flex items-center justify-center bg-white rounded-xl shadow-2xl p-1 md:p-3 w-full">
+          <p className="text-sm text-muted-foreground p-8">Loading hexagon template...</p>
         </div>
       </div>
     );
@@ -359,25 +352,22 @@ export const HexagonSvgGrid: React.FC<HexagonSvgGridProps> = ({
 
   if (error || slots.length === 0) {
     return (
-      <div className={wrapperClass}>
-        <div className={cardClass} style={cardStyle}>
-          <div className="flex-1 min-h-0 flex items-center justify-center" style={{ minHeight: 200 }}>
-            <p className="text-sm text-destructive">{error || 'No slots found'}</p>
-          </div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-2 md:p-6">
+        <div className="flex items-center justify-center bg-white rounded-xl shadow-2xl p-1 md:p-3 w-full">
+          <p className="text-sm text-destructive p-8">{error || 'No slots found'}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={wrapperClass}>
-      <div className={`${cardClass} relative`} style={cardStyle}>
-        {/* Bounded box: SVG scales to fit parent; use viewport-based height like square grid. */}
-        <div style={svgContainerStyle}>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-2 md:p-6">
+      <div className="relative bg-white rounded-xl shadow-2xl p-1 md:p-3 w-full">
+        <div style={containerStyle}>
           <svg
             viewBox={`0 0 ${width} ${height}`}
             preserveAspectRatio="xMidYMid meet"
-            style={{ display: 'block', width: 'auto', height: '100%', maxWidth: '100%', maxHeight: '100%' }}
+            style={{ display: 'block', width: '100%', height: '100%' }}
           >
             <defs>
               {slots.map((s) => (
@@ -418,33 +408,27 @@ export const HexagonSvgGrid: React.FC<HexagonSvgGridProps> = ({
             })}
           </svg>
         </div>
-        {/* Empty state inside the center hex: position/size to match center slot bbox (viewBox %). */}
-        {emptyCenter != null && slots[0] && (
-          (() => {
-            const center = slots[0];
-            const { x: cx, y: cy, width: cw, height: ch } = center.bbox;
-            const inset = 0.02;
-            const leftPct = (cx / width) * 100 + inset * 100;
-            const topPct = (cy / height) * 100 + inset * 100;
-            const wPct = (cw / width) * 100 - inset * 200;
-            const hPct = (ch / height) * 100 - inset * 200;
-            return (
-              <div
-                className="absolute flex items-center justify-center pointer-events-none"
-                style={{
-                  left: `${leftPct}%`,
-                  top: `${topPct}%`,
-                  width: `${wPct}%`,
-                  height: `${hPct}%`,
-                }}
-              >
-                <div className="pointer-events-auto flex flex-col items-center justify-center text-center p-2 w-full h-full overflow-hidden box-border text-xs [&_button]:text-xs [&_button]:py-1.5 [&_button]:px-2 [&_p]:text-xs [&_p]:mb-1">
-                  {emptyCenter}
-                </div>
+
+        {emptyCenter != null && slots[0] && (() => {
+          const center = slots[0];
+          const { x: cx, y: cy, width: cw, height: ch } = center.bbox;
+          const inset = 0.02;
+          return (
+            <div
+              className="absolute flex items-center justify-center pointer-events-none"
+              style={{
+                left: `${(cx / width) * 100 + inset * 100}%`,
+                top: `${(cy / height) * 100 + inset * 100}%`,
+                width: `${(cw / width) * 100 - inset * 200}%`,
+                height: `${(ch / height) * 100 - inset * 200}%`,
+              }}
+            >
+              <div className="pointer-events-auto flex flex-col items-center justify-center text-center p-2 w-full h-full overflow-hidden box-border text-xs [&_button]:text-xs [&_button]:py-1.5 [&_button]:px-2 [&_p]:text-xs [&_p]:mb-1">
+                {emptyCenter}
               </div>
-            );
-          })()
-        )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
