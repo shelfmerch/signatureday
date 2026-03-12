@@ -22,6 +22,10 @@ export default function AmbassadorDashboard() {
   const [savingUpi, setSavingUpi] = useState(false);
   const [rewardScreenshots, setRewardScreenshots] = useState<Record<string, string>>({});
 
+  const JOIN_PRICE = 149;
+  const REWARD_RATE = 0.16;
+  const REWARD_PER_MEMBER = Number((JOIN_PRICE * REWARD_RATE).toFixed(2)); // 23.84
+
   useEffect(() => {
     if (!ambassadorId) {
       navigate('/ambassador/signup');
@@ -137,6 +141,10 @@ export default function AmbassadorDashboard() {
   // Backend may return a default like localhost if FRONTEND_ORIGIN isn't set correctly.
   const referralUrl = `${window.location.origin}/ref/${ambassador.referralCode}`;
 
+  const activeMembersJoined = groups
+    .filter(g => g.status !== 'paid' && g.status !== 'Paid')
+    .reduce((sum, g) => sum + (g.currentMemberCount || 0), 0);
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -247,7 +255,7 @@ export default function AmbassadorDashboard() {
                   groups
                     .filter(g => g.status !== 'paid' && g.status !== 'Paid')
                     .reduce((sum, g) => sum + (g.currentMemberCount || 0), 0)
-                  * 149 * 0.16
+                  * JOIN_PRICE * REWARD_RATE
                 )}
               </div>
 
@@ -256,7 +264,7 @@ export default function AmbassadorDashboard() {
                   groups
                     .filter(g => g.status !== 'paid' && g.status !== 'Paid')
                     .reduce((sum, g) => sum + (g.currentMemberCount || 0), 0)
-                } members joined (₹17.88/member)
+                } members joined (₹{REWARD_PER_MEMBER}/member)
               </p>
             </CardContent>
 
@@ -331,7 +339,7 @@ export default function AmbassadorDashboard() {
                           </div>
                         </td>
                         <td className="p-3 font-medium">
-                          ₹{Math.round((group.currentMemberCount || 0) * 149 * 0.16)}
+                          ₹{Math.round((group.currentMemberCount || 0) * JOIN_PRICE * REWARD_RATE)}
                         </td>
                         <td className="p-3 text-muted-foreground">
                           {new Date(group.createdAt).toLocaleDateString()}
@@ -354,12 +362,12 @@ export default function AmbassadorDashboard() {
           <CardContent>
             <div className="space-y-3 text-sm text-muted-foreground">
               <p>
-                Each member who joins a group pays <span className="font-semibold">₹149</span> (incl. GST). You earn
-                <span className="font-semibold"> 16%</span> of ₹149 value, i.e., <span className="font-semibold">₹17.88 per member</span>.
+                Each member who joins a group pays <span className="font-semibold">₹{JOIN_PRICE}</span> (incl. GST). You earn
+                <span className="font-semibold"> 16%</span> of ₹{JOIN_PRICE} value, i.e., <span className="font-semibold">₹{REWARD_PER_MEMBER} per member</span>.
               </p>
               <p className="text-xs">
                 Example: If 50 members complete their join payment across your referred groups, your reward is
-                <span className="font-semibold"> 50 × ₹17.88 = ₹894</span>.
+                <span className="font-semibold"> 50 × ₹{REWARD_PER_MEMBER} = ₹{Number((50 * REWARD_PER_MEMBER).toFixed(0))}</span>.
               </p>
             </div>
           </CardContent>
