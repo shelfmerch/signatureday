@@ -19,11 +19,18 @@ interface GridPreviewProps {
 // Hexagon SVG modules and path resolver
 const hexagonSvgModules = import.meta.glob('./hexagon/*.svg', { as: 'raw' });
 const getHexagonSvgPath = (n: number): string | null => {
-  const expected = `${n}.svg`;
-  const key = Object.keys(hexagonSvgModules).find(
-    (k) => k.endsWith(expected) || k.includes(`hexagon/${expected}`)
-  );
-  return key ?? null;
+  const entries = Object.keys(hexagonSvgModules)
+    .map((path) => {
+      const match = path.match(/\/(\d+)\.svg$/);
+      if (!match) return null;
+      const count = parseInt(match[1], 10);
+      if (!Number.isFinite(count)) return null;
+      return { path, count };
+    })
+    .filter((e): e is { path: string; count: number } => !!e);
+
+  const exact = entries.find((e) => e.count === n);
+  return exact ? exact.path : null;
 };
 
 const AnimatedPreloader = () => {

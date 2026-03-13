@@ -54,6 +54,7 @@ const Editor = () => {
   const [group, setGroup] = useState<CollageGroup | null>(null);
   const [loadingGroup, setLoadingGroup] = useState(true);
   const [showCurrentMembers, setShowCurrentMembers] = useState(false);
+  const [isMembersOpenMobile, setIsMembersOpenMobile] = useState(false);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [isCheckoutUpdating, setIsCheckoutUpdating] = useState(false);
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
@@ -173,7 +174,8 @@ const Editor = () => {
       return prev;
     });
   }, [availableTemplates, winningTemplateForTemplates]);
-  const displayTemplate = availableTemplates[Math.min(currentTemplateIndex, Math.max(0, availableTemplates.length - 1))]?.type ?? winningTemplateForTemplates;
+  const displayTemplate =
+    availableTemplates[Math.min(currentTemplateIndex, Math.max(0, availableTemplates.length - 1))]?.type ?? 'square';
   const handlePrevTemplate = (e: React.MouseEvent) => {
     e.preventDefault();
     if (availableTemplates.length <= 1) return;
@@ -816,7 +818,9 @@ const Editor = () => {
                 {/* Payment Card */}
                 <Card className="shadow-lg border-0 backdrop-blur-lg bg-white/80">
                   <CardHeader className="pb-3 sm:pb-4">
-                    <CardTitle className="text-lg sm:text-xl bg-gradient-to-r from-purple-600 to-pink-600 text-transparent bg-clip-text">Complete Your Payment</CardTitle>
+                    <CardTitle className="text-lg sm:text-xl bg-gradient-to-r from-purple-600 to-pink-600 text-transparent bg-clip-text">
+                      Leader pays full amount
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 sm:space-y-4">
                     {isLeader && (
@@ -867,12 +871,24 @@ const Editor = () => {
                   </CardContent>
                 </Card>
 
-                {/* Member List - Desktop Only */}
-                <Card className="shadow-lg border-0 backdrop-blur-lg bg-white/80 hidden lg:flex flex-col flex-1 min-h-0">
+                {/* Member List */}
+                <Card className="shadow-lg border-0 backdrop-blur-lg bg-white/80 flex flex-col flex-1 min-h-0">
                   <CardHeader className="pb-3 sm:pb-6">
-                    <CardTitle className="text-lg sm:text-xl bg-gradient-to-r from-purple-600 to-pink-600 text-transparent bg-clip-text">Members ({group.members.length}/{group.totalMembers})</CardTitle>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between lg:block text-left"
+                      onClick={() => setIsMembersOpenMobile((prev) => !prev)}
+                    >
+                      <CardTitle className="text-lg sm:text-xl bg-gradient-to-r from-purple-600 to-pink-600 text-transparent bg-clip-text">
+                        Send Individual Payment Links ({group.members.length}/{group.totalMembers})
+                      </CardTitle>
+                      <ChevronRight
+                        className={`h-4 w-4 text-gray-400 lg:hidden transform transition-transform ${isMembersOpenMobile ? 'rotate-90' : ''
+                          }`}
+                      />
+                    </button>
                   </CardHeader>
-                  <CardContent className="flex-1 overflow-hidden">
+                  <CardContent className={`flex-1 overflow-hidden ${isMembersOpenMobile ? 'block' : 'hidden'} lg:block`}>
                     {group.members.length === 0 ? (
                       <div className="h-full flex flex-col items-center justify-center py-4 sm:py-6 text-center">
                         <Users className="h-8 w-8 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-3" />
