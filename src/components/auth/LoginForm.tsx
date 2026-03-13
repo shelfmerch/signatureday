@@ -28,10 +28,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
-    
+
     if (token && window.location.pathname.includes('/auth/google/success')) {
+      // Google OAuth success: log the user in and send them
+      // directly to the SignatureDay GridBoard (/create-group).
       loginWithGoogle(token);
-      navigate('/dashboard');
+      navigate('/create-group');
     }
   }, [loginWithGoogle, navigate]);
   
