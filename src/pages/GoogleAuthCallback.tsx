@@ -12,26 +12,32 @@ export const GoogleAuthCallback: React.FC = () => {
   useEffect(() => {
     const handleGoogleAuth = async () => {
       const token = searchParams.get('token');
-      
-      if (token) {
-        try {
-          const success = await loginWithGoogle(token);
-          if (success) {
-            const userData = LocalStorageService.loadUserData();
-            if (userData?.isAdmin) {
-              navigate('/admin');
-            } else {
-              navigate('/dashboard');
-            }
-          } else {
-            navigate('/auth?error=google_auth_failed');
-          }
-        } catch (error) {
-          console.error('Google auth callback error:', error);
-          navigate('/auth?error=google_auth_failed');
-        }
-      } else {
+
+      if (!token) {
         navigate('/auth?error=no_token');
+        return;
+      }
+
+      try {
+        const success = await loginWithGoogle(token);
+        if (!success) {
+          navigate('/auth?error=google_auth_failed');
+          return;
+        }
+
+        const userData = LocalStorageService.loadUserData();
+
+        // Admins still go to the admin dashboard.
+        // Non-admin users coming from Google OAuth should be taken
+        // directly to the GridBoard/create-group flow.
+        if (userData?.isAdmin) {
+          navigate('/admin');
+        } else {
+          navigate('/create-group');
+        }
+      } catch (error) {
+        console.error('Google auth callback error:', error);
+        navigate('/auth?error=google_auth_failed');
       }
     };
 
