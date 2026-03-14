@@ -907,6 +907,53 @@ const Dashboard = () => {
 
         </div>
 
+        {/* Quick Stats - Mobile only: visible below Vote Distribution */}
+        <div className="lg:hidden mb-4">
+          <Card className="bg-white/90 backdrop-blur-xl border-white/50 shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 overflow-hidden">
+            <CardHeader className="p-6 pb-4">
+              <div className="flex items-center gap-3">
+                <Award className="h-5 w-5 text-yellow-600" />
+                <CardTitle>Quick Stats</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 pt-0">
+              <div className="space-y-6">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">Completion</span>
+                    <span className="text-sm font-medium text-gray-900">{completionPercentage}%</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-yellow-100 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-full transition-all duration-500"
+                      style={{ width: `${completionPercentage}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 bg-purple-50 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-purple-700">{filteredMembers.length}</p>
+                    <p className="text-xs text-purple-600">Members</p>
+                  </div>
+                  <div className="p-3 bg-pink-50 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-pink-700">{group.totalMembers - filteredMembers.length}</p>
+                    <p className="text-xs text-pink-600">Remaining</p>
+                  </div>
+                </div>
+                {filteredMembers.length >= group.totalMembers && (
+                  <Button
+                    onClick={handleOpenCapacityModal}
+                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white"
+                  >
+                    Increase Capacity
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
           {/* Left Column - Member List */}
