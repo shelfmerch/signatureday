@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LocalStorageService } from '@/lib/localStorage';
+import { userApi } from '@/lib/api';
 
 export const GoogleAuthCallback: React.FC = () => {
   const navigate = useNavigate();
@@ -27,14 +28,25 @@ export const GoogleAuthCallback: React.FC = () => {
 
         const userData = LocalStorageService.loadUserData();
 
-        // Admins still go to the admin dashboard.
-        // Non-admin users coming from Google OAuth should be taken
-        // directly to the GridBoard/create-group flow.
         if (userData?.isAdmin) {
           navigate('/admin');
-        } else {
-          navigate('/create-group');
+          return;
         }
+
+        // If user already has a group (they are leader), go to dashboard; otherwise onboarding.
+        const userId = userData?.id ?? userData?._id;
+        if (userId) {
+          try {
+            const res = await userApi.getUserGroups(userId);
+            if (res?.items?.length > 0) {
+              navigate('/dashboard');
+              return;
+            }
+          } catch (_) {
+            // Fallback to create-group if check fails
+          }
+        }
+        navigate('/create-group');
       } catch (error) {
         console.error('Google auth callback error:', error);
         navigate('/auth?error=google_auth_failed');
