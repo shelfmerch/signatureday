@@ -589,6 +589,13 @@ export const updateGroup = async (req, res) => {
     if (req.body.totalMembers) group.totalMembers = req.body.totalMembers;
     if (req.body.gridTemplate) group.gridTemplate = req.body.gridTemplate;
     if (req.body.layoutMode) group.layoutMode = req.body.layoutMode;
+    if (Array.isArray(req.body.members)) group.members = req.body.members;
+    if (req.body.votes && typeof req.body.votes === 'object') {
+      if (typeof req.body.votes.square === 'number') group.votes.square = req.body.votes.square;
+      if (typeof req.body.votes.hexagonal === 'number') group.votes.hexagonal = req.body.votes.hexagonal;
+      if (typeof req.body.votes.circle === 'number') group.votes.circle = req.body.votes.circle;
+      if (typeof req.body.votes.any === 'number') group.votes.any = req.body.votes.any;
+    }
 
     const updatedGroup = await group.save();
 

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Award, TrendingUp, Users, Share, Eye, LogOut, RefreshCw, Trash2, AlertTriangle, Copy, Check, Lock, Plus } from 'lucide-react';
+import { Award, TrendingUp, Users, Share, Eye, LogOut, RefreshCw, Trash2, AlertTriangle, Copy, Check, Lock, Plus, UserMinus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useCollage, Member } from '@/context/CollageContext'
 import { MemberDetailsModal } from '@/components/MemberDetailsModal';
@@ -53,6 +53,8 @@ const Dashboard = () => {
   const [isUpdatingCapacity, setIsUpdatingCapacity] = useState(false);
   const [userGroups, setUserGroups] = useState<Array<{ id: string; name: string; yearOfPassing?: string }> | null>(null);
   const [isFinalizingLayout, setIsFinalizingLayout] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
+  const [isRemovingMember, setIsRemovingMember] = useState(false);
 
   const handleFinalizeLayout = async (chosen: 'square' | 'hexagonal') => {
     if (!groupId || group?.layoutMode !== 'voting') return;
@@ -554,6 +556,38 @@ const Dashboard = () => {
     }
   };
 
+  const handleConfirmRemoveMember = async () => {
+    if (!groupId || !group || !memberToRemove) return;
+    setIsRemovingMember(true);
+    try {
+      const newMembers = group.members.filter(
+        (m: Member) => m.memberRollNumber !== memberToRemove.memberRollNumber
+      );
+      const currentVotes = group.votes || { square: 0, hexagonal: 0, any: 0 };
+      const newVotes = { ...currentVotes } as Record<string, number>;
+      const voteKey = memberToRemove.vote || 'square';
+      if (typeof newVotes[voteKey] === 'number' && newVotes[voteKey] > 0) {
+        newVotes[voteKey] = newVotes[voteKey] - 1;
+      }
+      await updateGroup(groupId, {
+        members: newMembers.map((m: any) => ({
+          ...m,
+          joinedAt: m.joinedAt instanceof Date ? m.joinedAt.toISOString() : m.joinedAt
+        })),
+        votes: newVotes
+      });
+      const refreshed = await getGroup(groupId, true);
+      if (refreshed) setGroup(refreshed);
+      toast.success(`${memberToRemove.name} has been removed from the group.`);
+      setMemberToRemove(null);
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to remove member. Please try again.');
+    } finally {
+      setIsRemovingMember(false);
+    }
+  };
+
   const handleOpenCapacityModal = () => {
     if (!group) return;
     setNewCapacity(Math.max(group.totalMembers + 1, group.members.length + 1));
@@ -1015,6 +1049,20 @@ const Dashboard = () => {
                           <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
                           <span className="text-xs text-gray-500">Active</span>
                         </div>
+                        {isLeader && member.id !== user?.id && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMemberToRemove(member);
+                            }}
+                            title="Remove member"
+                          >
+                            <UserMinus className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1393,6 +1441,46 @@ const Dashboard = () => {
                 </>
               ) : (
                 'Update'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove member confirmation */}
+      <Dialog open={!!memberToRemove} onOpenChange={(open) => !open && setMemberToRemove(null)}>
+        <DialogContent className="w-[95vw] max-w-md mx-auto bg-white backdrop-blur-lg border-none shadow-xl p-4 sm:p-6 rounded-xl">
+          <DialogHeader className="space-y-3 text-center">
+            <DialogTitle className="text-xl sm:text-2xl font-bold text-gray-900">
+              Remove member
+            </DialogTitle>
+            <DialogDescription className="text-sm sm:text-base text-gray-600">
+              {memberToRemove
+                ? `Remove ${memberToRemove.name} from the group? They can re-join later using the group link.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col sm:flex-row gap-3 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setMemberToRemove(null)}
+              className="flex-1"
+              disabled={isRemovingMember}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmRemoveMember}
+              className="flex-1 bg-red-600 hover:bg-red-700"
+              disabled={isRemovingMember}
+            >
+              {isRemovingMember ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Removing...
+                </>
+              ) : (
+                'Remove'
               )}
             </Button>
           </div>
